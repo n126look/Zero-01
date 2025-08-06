@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>點餐系統</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 1rem; background: #f7f7f7; }
+    h1, h2 { color: #333; }
+    .item { background: #fff; border: 1px solid #ccc; border-radius: 6px; padding: 1rem; margin: 0.5rem 0; box-shadow: 1px 1px 5px rgba(0,0,0,0.1); }
+    .item input[type='number'], .item input[type='text'] {
+      width: 80px; margin-left: 0.5rem;
+    }
+    button {
+      margin-top: 2rem;
+      padding: 0.75rem 1.5rem;
+      font-size: 1.1rem;
+      background: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .message {
+      margin-top: 1rem;
+      font-weight: bold;
+      color: green;
+    }
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <h1>📋 手機點餐</h1>
+  <div id="menu"></div>
+  <button onclick="submitOrder()">送出訂單</button>
+  <div class="message" id="message"></div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDaC14zf1ZxOsd-twyjzSgTIcNBwty1Is",
+      authDomain: "zero-01-17457.firebaseapp.com",
+      projectId: "zero-01-17457",
+      storageBucket: "zero-01-17457.appspot.com",
+      messagingSenderId: "534119998616",
+      appId: "1:534119998616:web:ec3b6c2d48318f9c51ced",
+      databaseURL: "https://zero-01-17457-default-rtdb.firebaseio.com"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const menuRef = db.ref("menu_items");
+    const menuDiv = document.getElementById("menu");
+    const messageDiv = document.getElementById("message");
+    let currentTable = new URLSearchParams(location.search).get("table") || "01";
+
+    menuRef.once("value").then(snapshot => {
+      const data = snapshot.val();
+      const grouped = {};
+      for (let key in data) {
+        const item = data[key];
+        if (!grouped[item.category]) grouped[item.category] = [];
+        grouped[item.category].push({ ...item, id: key });
+      }
+
+      for (let cat in grouped) {
+        const title = document.createElement("h2");
+        title.innerText = cat;
+        menuDiv.appendChild(title);
+
+        grouped[cat].forEach(item => {
+          const div = document.createElement("div");
+          div.className = "item";
+          div.innerHTML = `
+            <label>
+              ${item.name}（$${item.price}）
+              數量：<input type="number" min="0" value="0" id="qty-${item.id}" />
+              ${item.enable_note ? `備註：<input type="text" id="note-${item.id}" placeholder="備註..." />` : ""}
+            </label>
+          `;
+          menuDiv.appendChild(div);
+        });
+      }
+    }).catch(err => {
+      messageDiv.innerHTML = `<span class="error">⚠️ 無法載入菜單資料：${err.message}</span>`;
+    });
+
+    function submitOrder() {
+      messageDiv.innerHTML = "";
+      const timestamp = new Date().toISOString();
+      const newOrder = {
+        table: currentTable,
+        time: timestamp,
+        items: []
+      };
+
+      menuRef.once("value").then(snapshot => {
+        const data = snapshot.val();
+        let hasValidItem = false;
+
+        for (let key in data) {
+          const qtyInput = document.getElementById("qty-" + key);
+          if (!qtyInput) continue;
+
+          const qty = parseInt(qtyInput.value);
+          if (!isNaN(qty) && qty > 0) {
+            hasValidItem = true;
+            const note = data[key].enable_note ? document.getElementById("note-" + key).value : "";
+            newOrder.items.push({
+              name: data[key].name,
+              quantity: qty,
+              note: note.trim()
+            });
+          }
+        }
+
+        if (!hasValidItem) {
+          messageDiv.innerHTML = '<span class="error">⚠️ 請至少選擇一項餐點！</span>';
+          return;
+        }
+
+        db.ref("orders").push(newOrder).then(() => {
+          messageDiv.innerHTML = "✅ 訂單送出成功，請稍候上菜！";
+          setTimeout(() => location.reload(), 1500);
+        }).catch(err => {
+          messageDiv.innerHTML = `<span class="error">⚠️ 訂單送出失敗：${err.message}</span>`;
+        });
+
+      }).catch(err => {
+        messageDiv.innerHTML = `<span class="error">⚠️ 無法讀取菜單：${err.message}</span>`;
+      });
+    }
+  </script>
+</body>
+</html>
