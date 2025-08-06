@@ -4,15 +4,30 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>點餐系統</title>
-  <!-- ✅ 使用 compat 版本的 Firebase SDK -->
+  <!-- Firebase SDK (Compat 版本) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 1rem; background: #f7f7f7; }
-    h1, h2 { color: #333; }
-    .item { background: #fff; border: 1px solid #ccc; border-radius: 6px; padding: 1rem; margin: 0.5rem 0; box-shadow: 1px 1px 5px rgba(0,0,0,0.1); }
-    .item input[type='number'], .item input[type='text'] {
-      width: 80px; margin-left: 0.5rem;
+    body {
+      font-family: sans-serif;
+      padding: 1rem;
+      background: #f7f7f7;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    .item {
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 1rem;
+      margin: 0.5rem 0;
+      box-shadow: 1px 1px 5px rgba(0,0,0,0.1);
+    }
+    .item input[type='number'],
+    .item input[type='text'] {
+      width: 80px;
+      margin-left: 0.5rem;
     }
     button {
       margin-top: 2rem;
@@ -44,6 +59,7 @@
   <div class="message" id="message"></div>
 
   <script>
+    // ✅ 替換為你的 Firebase 設定
     const firebaseConfig = {
       apiKey: "AIzaSyDaC14zf1ZxOsd-twyjzSgTIcNBwty1Is",
       authDomain: "zero-01-17457.firebaseapp.com",
@@ -54,16 +70,23 @@
       databaseURL: "https://zero-01-17457-default-rtdb.firebaseio.com"
     };
 
+    // 初始化 Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-
     const menuRef = db.ref("menu_items");
+
     const menuDiv = document.getElementById("menu");
     const messageDiv = document.getElementById("message");
     let currentTable = new URLSearchParams(location.search).get("table") || "01";
 
+    // 讀取菜單資料
     menuRef.once("value").then(snapshot => {
       const data = snapshot.val();
+      if (!data) {
+        messageDiv.innerHTML = `<span class="error">⚠️ 尚未匯入菜單資料</span>`;
+        return;
+      }
+
       const grouped = {};
       for (let key in data) {
         const item = data[key];
@@ -93,6 +116,7 @@
       messageDiv.innerHTML = `<span class="error">⚠️ 無法載入菜單資料：${err.message}</span>`;
     });
 
+    // 送出訂單
     function submitOrder() {
       messageDiv.innerHTML = "";
       const timestamp = new Date().toISOString();
@@ -141,3 +165,4 @@
   </script>
 </body>
 </html>
+
