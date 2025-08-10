@@ -1,65 +1,42 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>點餐系統</title>
-  <!-- Firebase SDK (Compat 版本) -->
+
+  <!-- 使用 compat 版 SDK，方便在 <script> 直接使用全域 firebase 物件 -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 1rem;
-      background: #f7f7f7;
-    }
-    h1, h2 {
-      color: #333;
-    }
-    .item {
-      background: #fff;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      padding: 1rem;
-      margin: 0.5rem 0;
-      box-shadow: 1px 1px 5px rgba(0,0,0,0.1);
-    }
-    .item input[type='number'],
-    .item input[type='text'] {
-      width: 80px;
-      margin-left: 0.5rem;
-    }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", Arial;
+           padding: 1rem; background: #f7f7f7; }
+    h1, h2 { color: #333; }
+    .item { background: #fff; border: 1px solid #e5e5e5; border-radius: 10px;
+            padding: 1rem; margin: .5rem 0; box-shadow: 0 2px 10px rgba(0,0,0,.04); }
+    .row { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+    .name { font-weight: 600; }
+    .price { color: #666; }
+    .qty { width: 90px; }
+    .note { flex: 1 1 220px; min-width: 220px; }
     button {
-      margin-top: 2rem;
-      padding: 0.75rem 1.5rem;
-      font-size: 1.1rem;
-      background: #007bff;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
+      margin-top: 1.25rem; padding: .8rem 1.4rem; font-size: 1.05rem; font-weight: 600;
+      background: #0d6efd; color: #fff; border: none; border-radius: 8px; cursor: pointer;
     }
-    button:hover {
-      background: #0056b3;
-    }
-    .message {
-      margin-top: 1rem;
-      font-weight: bold;
-      color: green;
-    }
-    .error {
-      color: red;
-    }
+    button:hover { background:#0b5ed7; }
+    .message { margin-top: 1rem; font-weight: 700; }
+    .ok { color:#0a7d39; } .err { color:#b3261e; }
   </style>
 </head>
 <body>
   <h1>📋 手機點餐</h1>
   <div id="menu"></div>
-  <button onclick="submitOrder()">送出訂單</button>
+  <button id="submit">送出訂單</button>
   <div class="message" id="message"></div>
 
   <script>
-    // ✅ 替換為你的 Firebase 設定
+    // === 1) Firebase 設定 ===
     const firebaseConfig = {
       apiKey: "AIzaSyDaC14zf1ZxOsd-twyjzSgTIcNBwty1Is",
       authDomain: "zero-01-17457.firebaseapp.com",
@@ -67,102 +44,112 @@
       storageBucket: "zero-01-17457.appspot.com",
       messagingSenderId: "534119998616",
       appId: "1:534119998616:web:ec3b6c2d48318f9c51ced",
-      databaseURL: "https://zero-01-17457-default-rtdb.firebaseio.com"
+      // ✅ 使用你資料庫實際所在區域（Singapore）
+      databaseURL: "https://zero-01-17457-default-rtdb.asia-southeast1.firebasedatabase.app"
     };
 
-    // 初始化 Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    const menuRef = db.ref("menu_items");
 
+    // === 2) DOM 參照 ===
     const menuDiv = document.getElementById("menu");
     const messageDiv = document.getElementById("message");
-    let currentTable = new URLSearchParams(location.search).get("table") || "01";
+    const submitBtn = document.getElementById("submit");
+    const currentTable = new URLSearchParams(location.search).get("table") || "01";
 
-    // 讀取菜單資料
-    menuRef.once("value").then(snapshot => {
-      const data = snapshot.val();
-      if (!data) {
-        messageDiv.innerHTML = `<span class="error">⚠️ 尚未匯入菜單資料</span>`;
-        return;
-      }
-
-      const grouped = {};
-      for (let key in data) {
-        const item = data[key];
-        if (!grouped[item.category]) grouped[item.category] = [];
-        grouped[item.category].push({ ...item, id: key });
-      }
-
-      for (let cat in grouped) {
-        const title = document.createElement("h2");
-        title.innerText = cat;
-        menuDiv.appendChild(title);
-
-        grouped[cat].forEach(item => {
-          const div = document.createElement("div");
-          div.className = "item";
-          div.innerHTML = `
-            <label>
-              ${item.name}（$${item.price}）
-              數量：<input type="number" min="0" value="0" id="qty-${item.id}" />
-              ${item.enable_note ? `備註：<input type="text" id="note-${item.id}" placeholder="備註..." />` : ""}
-            </label>
-          `;
-          menuDiv.appendChild(div);
-        });
-      }
-    }).catch(err => {
-      messageDiv.innerHTML = `<span class="error">⚠️ 無法載入菜單資料：${err.message}</span>`;
-    });
-
-    // 送出訂單
-    function submitOrder() {
-      messageDiv.innerHTML = "";
-      const timestamp = new Date().toISOString();
-      const newOrder = {
-        table: currentTable,
-        time: timestamp,
-        items: []
-      };
-
-      menuRef.once("value").then(snapshot => {
+    // === 3) 載入菜單 ===
+    const menuRef = db.ref("menu_items");
+    menuRef.once("value")
+      .then(snapshot => {
         const data = snapshot.val();
-        let hasValidItem = false;
-
-        for (let key in data) {
-          const qtyInput = document.getElementById("qty-" + key);
-          if (!qtyInput) continue;
-
-          const qty = parseInt(qtyInput.value);
-          if (!isNaN(qty) && qty > 0) {
-            hasValidItem = true;
-            const note = data[key].enable_note ? document.getElementById("note-" + key).value : "";
-            newOrder.items.push({
-              name: data[key].name,
-              quantity: qty,
-              note: note.trim()
-            });
-          }
-        }
-
-        if (!hasValidItem) {
-          messageDiv.innerHTML = '<span class="error">⚠️ 請至少選擇一項餐點！</span>';
+        if (!data) {
+          menuDiv.innerHTML = "<p>尚無菜單資料。</p>";
           return;
         }
 
-        db.ref("orders").push(newOrder).then(() => {
-          messageDiv.innerHTML = "✅ 訂單送出成功，請稍候上菜！";
-          setTimeout(() => location.reload(), 1500);
-        }).catch(err => {
-          messageDiv.innerHTML = `<span class="error">⚠️ 訂單送出失敗：${err.message}</span>`;
+        // 依分類分組
+        const grouped = {};
+        Object.entries(data).forEach(([id, item]) => {
+          const cat = item.category || "其他";
+          (grouped[cat] ||= []).push({ ...item, id });
         });
 
-      }).catch(err => {
-        messageDiv.innerHTML = `<span class="error">⚠️ 無法讀取菜單：${err.message}</span>`;
+        // 生成畫面
+        Object.entries(grouped).forEach(([cat, items]) => {
+          const title = document.createElement("h2");
+          title.textContent = cat;
+          menuDiv.appendChild(title);
+
+          items.forEach(item => {
+            const card = document.createElement("div");
+            card.className = "item";
+            card.innerHTML = `
+              <div class="row">
+                <span class="name">${item.name}</span>
+                <span class="price">＄${item.price}</span>
+                <label>數量：
+                  <input class="qty" type="number" min="0" value="0" id="qty-${item.id}">
+                </label>
+                ${item.enable_note ? `
+                  <input class="note" type="text" id="note-${item.id}" placeholder="備註（可留空）">` : ""}
+              </div>
+            `;
+            menuDiv.appendChild(card);
+          });
+        });
+      })
+      .catch(err => {
+        messageDiv.className = "message err";
+        messageDiv.textContent = `⚠️ 無法載入菜單：${err.message}`;
       });
-    }
+
+    // === 4) 送出訂單 ===
+    submitBtn.addEventListener("click", () => {
+      messageDiv.textContent = "";
+      messageDiv.className = "message";
+
+      menuRef.once("value")
+        .then(snapshot => {
+          const data = snapshot.val() || {};
+          const items = [];
+
+          for (const id of Object.keys(data)) {
+            const qtyEl = document.getElementById(`qty-${id}`);
+            if (!qtyEl) continue;
+            const qty = parseInt(qtyEl.value, 10) || 0;
+            if (qty > 0) {
+              const noteEl = document.getElementById(`note-${id}`);
+              const note = noteEl ? (noteEl.value || "").trim() : "";
+              items.push({ name: data[id].name, quantity: qty, note });
+            }
+          }
+
+          if (items.length === 0) {
+            messageDiv.className = "message err";
+            messageDiv.textContent = "⚠️ 請至少選擇一項餐點";
+            return;
+          }
+
+          const order = {
+            table: currentTable,
+            time: new Date().toISOString(),
+            items
+          };
+
+          return db.ref("orders").push(order);
+        })
+        .then(() => {
+          if (!messageDiv.textContent) {
+            messageDiv.className = "message ok";
+            messageDiv.textContent = "✅ 訂單送出成功，請稍候上菜！";
+            setTimeout(() => location.reload(), 1500);
+          }
+        })
+        .catch(err => {
+          messageDiv.className = "message err";
+          messageDiv.textContent = `⚠️ 訂單送出失敗：${err.message}`;
+        });
+    });
   </script>
 </body>
 </html>
-
