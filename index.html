@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>點餐系統</title>
 
-  <!-- Firebase（compat 版，方便以全域 firebase 使用） -->
+  <!-- Firebase（compat 版，方便使用全域 firebase 物件） -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
   <style>
-    :root { color-scheme: light dark; }
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", Arial;
+    :root { color-scheme: light; }
+    body { font-family: system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",Arial;
            padding: 1rem; background: #f7f7f7; }
     h1, h2 { color: #333; }
     .item { background: #fff; border: 1px solid #e5e5e5; border-radius: 10px;
@@ -21,37 +21,41 @@
     .price { color: #666; }
     .qty { width: 90px; }
     .note { flex: 1 1 220px; min-width: 220px; }
+    .total { margin: 1rem 0 0.5rem; font-size: 1.15rem; font-weight: 800; }
     button {
-      margin-top: 1.25rem; padding: .8rem 1.4rem; font-size: 1.05rem; font-weight: 600;
+      margin-top: .75rem; padding: .8rem 1.4rem; font-size: 1.05rem; font-weight: 600;
       background: #0d6efd; color: #fff; border: none; border-radius: 8px; cursor: pointer;
     }
     button:hover { background:#0b5ed7; }
-    .message { margin-top: 1rem; font-weight: 700; min-height: 1.25rem; }
+    .message { margin-top: .75rem; font-weight: 700; min-height: 1.25rem; }
     .ok { color:#0a7d39; } .err { color:#b3261e; }
   </style>
 </head>
 <body>
   <h1>📋 手機點餐</h1>
   <div id="menu"></div>
+
+  <!-- ✅ 即時計算總價顯示 -->
+  <div id="total" class="total">合計金額：$0</div>
+
   <button id="submit">送出訂單</button>
   <div class="message" id="message"></div>
 
   <script>
-    // === 0) 小工具 ===
+    // 小工具
     const byId = (id) => document.getElementById(id);
     const menuDiv = byId("menu");
     const messageDiv = byId("message");
+    const totalDiv = byId("total");
     const submitBtn = byId("submit");
     const currentTable = new URLSearchParams(location.search).get("table") || "01";
 
     const state = {
-      // 來源紀錄：'firebase' 或 'json'
-      source: null,
-      // 最新載入到的菜單資料（object）
-      menuData: null
+      source: null,      // 'firebase' | 'json'
+      menuData: null     // { itemId: {name, price, category, enable_note}, ... }
     };
 
-    // === 1) 初始化 Firebase ===
+    // Firebase 設定（用你的專案資料）
     const firebaseConfig = {
       apiKey: "AIzaSyDaC14zf1ZxOsd-twyjzSgTIcNBwty1Is",
       authDomain: "zero-01-17457.firebaseapp.com",
@@ -59,7 +63,6 @@
       storageBucket: "zero-01-17457.appspot.com",
       messagingSenderId: "534119998616",
       appId: "1:534119998616:web:ec3b6c2d48318f9c51ced",
-      // ✅ 使用你資料庫的實際區域（Singapore）
       databaseURL: "https://zero-01-17457-default-rtdb.asia-southeast1.firebasedatabase.app"
     };
 
@@ -68,30 +71,28 @@
       firebase.initializeApp(firebaseConfig);
       db = firebase.database();
     } catch (e) {
-      console.warn("Firebase 初始化失敗，將以 JSON 備援：", e);
+      console.warn("Firebase 初始化失敗，改用 JSON 備援：", e);
     }
 
-    // === 2) 優先讀 Firebase，失敗則讀本地 JSON ===
+    // 優先讀 Firebase，失敗則讀本地 JSON
     async function loadMenu() {
-      // 2-1 先試 Firebase
       if (db) {
         try {
-          const snapshot = await db.ref("menu_items").once("value");
-          const data = snapshot.val();
+          const snap = await db.ref("menu_items").once("value");
+          const data = snap.val();
           if (data && Object.keys(data).length) {
             state.source = "firebase";
             state.menuData = data;
             console.info("✅ 菜單來源：Firebase");
             renderMenu(data);
+            updateTotal();
             return;
           }
-          console.warn("Firebase /menu_items 沒資料，改讀 JSON。");
+          console.warn("Firebase /menu_items 無資料，改讀 JSON。");
         } catch (err) {
           console.warn("讀取 Firebase 失敗，改讀 JSON：", err);
         }
       }
-
-      // 2-2 讀本地 JSON（需與 index.html 放同層）
       try {
         const res = await fetch("menu_items.json", { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -100,25 +101,24 @@
         state.menuData = data;
         console.info("✅ 菜單來源：menu_items.json");
         renderMenu(data);
+        updateTotal();
       } catch (err) {
         messageDiv.className = "message err";
         messageDiv.textContent = `⚠️ 無法取得菜單（Firebase 與 JSON 皆失敗）：${err.message}`;
       }
     }
 
-    // === 3) 依資料渲染畫面 ===
+    // 渲染菜單
     function renderMenu(rawData) {
-      // 將資料以分類分組
+      // 分類
       const grouped = {};
       Object.entries(rawData).forEach(([id, item]) => {
         const cat = item.category || "其他";
         (grouped[cat] ||= []).push({ ...item, id });
       });
 
-      // 清空
+      // 清空並生成
       menuDiv.innerHTML = "";
-
-      // 生成分類與品項
       Object.entries(grouped).forEach(([cat, items]) => {
         const title = document.createElement("h2");
         title.textContent = cat;
@@ -139,11 +139,27 @@
             </div>
           `;
           menuDiv.appendChild(card);
+
+          // 綁定：數量變動即時更新總價
+          card.querySelector(`#qty-${item.id}`).addEventListener("input", updateTotal);
         });
       });
     }
 
-    // === 4) 送出訂單（若來源是 JSON，就只在前端驗證並提示；若是 Firebase，才真的 push） ===
+    // 即時計算總價（用 state.menuData，不重抓資料庫）
+    function updateTotal() {
+      const data = state.menuData || {};
+      let total = 0;
+      for (const id of Object.keys(data)) {
+        const qtyEl = byId(`qty-${id}`);
+        if (!qtyEl) continue;
+        const qty = parseInt(qtyEl.value, 10) || 0;
+        if (qty > 0) total += (Number(data[id].price) || 0) * qty;
+      }
+      totalDiv.textContent = `合計金額：$${total}`;
+    }
+
+    // 送出訂單
     submitBtn.addEventListener("click", async () => {
       messageDiv.textContent = "";
       messageDiv.className = "message";
@@ -158,7 +174,7 @@
         if (qty > 0) {
           const noteEl = byId(`note-${id}`);
           const note = noteEl ? (noteEl.value || "").trim() : "";
-          items.push({ name: data[id].name, quantity: qty, note });
+          items.push({ name: data[id].name, price: data[id].price, quantity: qty, note });
         }
       }
 
@@ -171,10 +187,10 @@
       const order = {
         table: currentTable,
         time: new Date().toISOString(),
-        items
+        items,
+        total: Number(totalDiv.textContent.replace(/[^\d]/g, "")) || 0
       };
 
-      // 來源不同，處理不同
       if (state.source === "firebase" && db) {
         try {
           await db.ref("orders").push(order);
@@ -186,8 +202,7 @@
           messageDiv.textContent = `⚠️ 訂單送出失敗：${err.message}`;
         }
       } else {
-        // JSON 備援模式：不具備寫入功能，只做成功提示
-        console.log("（備援）以下訂單僅於前端記錄：", order);
+        console.log("（JSON 備援）以下訂單僅於前端記錄：", order);
         messageDiv.className = "message ok";
         messageDiv.textContent = "✅ 已記錄您的選擇（目前為離線/JSON 模式，不會寫入雲端）";
       }
@@ -198,3 +213,4 @@
   </script>
 </body>
 </html>
+
