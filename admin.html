@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>點餐後台｜即時訂單</title>
+
+  <!-- Firebase compat 版 -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+  <style>
+    body { font-family: ui-sans-serif, system-ui, "Noto Sans TC", Arial; background:#f7f7f7; padding: 20px; }
+    h1 { margin: 0 0 16px; }
+    .toolbar { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
+    .card {
+      background:#fff; border:1px solid #e5e5e5; border-radius:12px; padding:14px 16px; 
+      margin:10px 0; box-shadow: 0 2px 10px rgba(0,0,0,.05);
+    }
+    .row { display:flex; gap:8px; flex-wrap: wrap; align-items:center; }
+    .tag { font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid #ddd; }
+    .tag.new { background:#eef6ff; border-color:#bcdcff; color:#0b53b6; }
+    .tag.prep { background:#fff7e6; border-color:#ffd58a; color:#9a5d00; }
+    .tag.done { background:#eaffea; border-color:#b8e4b8; color:#0a7d39; }
+    .tag.paid { background:#eee; color:#444; }
+    .items { margin-top:8px; }
+    .items table { width:100%; border-collapse: collapse; }
+    .items th, .items td { border-top:1px dashed #e5e5e5; padding:6px 2px; text-align:left; }
+    .right { text-align:right; }
+    .muted { color:#666; }
+    button, select {
+      border:1px solid #d0d0d0; background:#fff; padding:8px 10px; border-radius:8px; cursor:pointer;
+    }
+    button.primary { background:#0d6efd; color:#fff; border-color:#0d6efd; }
+    .sum { font-weight:700; }
+  </style>
+</head>
+<body>
+  <h1>📟 點餐後台（即時訂單）</h1>
+
+  <div class="toolbar">
+    <label>狀態篩選：
+      <select id="statusFilter">
+        <option value="">全部</option>
+        <option value="new">新單</option>
+        <option value="preparing">製作中</option>
+        <option value="done">完成</option>
+        <option value="paid">已結帳</option>
+      </select>
+    </label>
+    <button id="exportCsv">匯出 CSV</button>
+    <div class="muted" id="totalToday"></div>
+  </div>
+
+  <div id="orders"></div>
+
+<script>
+  // 1) Firebase 設定（與你的點餐頁相同，databaseURL 要用 asia-southeast1）
+  const firebaseConfig = {
+    apiKey: "AIzaSyDaC14zf1ZxOsd-twyjzSgTIcNBwty1Is",
+    authDomain: "zero-01-17457.firebaseapp.com",
+    projectId: "zero-01-17457",
+    storageBucket: "zero-01-17457.appspot.com",
+    messagingSenderId: "534119998616",
+    appId: "1:534119998616:web:ec3b6c2d48318f9c51ced",
+    databaseURL: "https://zero-01-17457-default-rtdb.asia-southeast1.firebasedatabase.app"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const ordersDiv = document.getElementById('orders');
+  const statusFilterEl = document.getElementById('statusFilter');
+  const exportBtn = document.getElementById('exportCsv');
+  const totalTodayEl = document.getElementById('totalToday');
+
+  let allOrders = []; // 會放成 {id, table, time, items[], status, totalCalc}
+
+  // 2) 計算金額（以每個 item 的 price*quantity 相加；若資料已含 total 也可使用）
+  function calcTotal(items) {
+    if (!items) return 0;
+    // items 可能是 array 或物件(以索引key存)，統一轉成陣列
+    const list = Array.isArray(items) ? items : Object.values(items);
+    return list.reduce((sum, it) => sum + (Number(it.price||0) * Number(it.quantity||0)), 0);
+  }
+
+  // 3) 標籤 class
+  function statusClass(s) {
+    if (s === 'preparing') return 'tag prep';
+    if (s === 'done') return 'tag done';
+    if (s === 'paid') return 'tag paid';
+    return 'tag new';
+  }
+
+  // 4) 產生單張訂單卡
+  function renderCard(o) {
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const time = new Date(o.time || Date.now());
+    const items = Array.isArray(o.items) ? o.items : Object.values(o.items || {});
+    const total = o.totalCalc;
+
+    card.innerHTML = `
+      <div class="row">
+        <div><strong>桌號</strong>：${o.table || '-'}</div>
+        <div class="${statusClass(o.status||'new')}">${(o.status||'new')}</div>
+        <div class="muted">時間：${time.toLocaleString()}</div>
+      </div>
+
+      <div class="items">
+        <table>
+          <thead>
+            <tr><th>品項</th><th class="right">單價</th><th class="right">數量</th><th class="right">小計</th></tr>
+          </thead>
+          <tbody>
+            ${items.map(it => `
+              <tr>
+                <td>${it.name || '-'} ${it.note ? `<span class="muted">（${it.note}）</span>`:''}</td>
+                <td class="right">$${Number(it.price||0)}</td>
+                <td class="right">${Number(it.quantity||0)}</td>
+                <td class="right">$${Number(it.price||0)*Number(it.quantity||0)}</td>
+              </tr>
+            `).join('')}
+            <tr>
+              <td colspan="3" class="right sum">合計</td>
+              <td class="right sum">$${total}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="row" style="margin-top:8px; gap:6px;">
+        <label>更改狀態：
+          <select data-action="status" data-id="${o.id}">
+            <option value="new" ${o.status==='new'?'selected':''}>新單</option>
+            <option value="preparing" ${o.status==='preparing'?'selected':''}>製作中</option>
+            <option value="done" ${o.status==='done'?'selected':''}>完成</option>
+            <option value="paid" ${o.status==='paid'?'selected':''}>已結帳</option>
+          </select>
+        </label>
+        <button data-action="delete" data-id="${o.id}">刪除訂單</button>
+      </div>
+    `;
+    return card;
+  }
+
+  // 5) 重新渲染訂單清單（依篩選）
+  function renderList() {
+    const filter = statusFilterEl.value;
+    ordersDiv.innerHTML = '';
+    // 依時間新到舊
+    const list = [...allOrders].sort((a,b) => (new Date(b.time)) - (new Date(a.time)));
+    let totalToday = 0;
+    const todayStr = new Date().toISOString().slice(0,10);
+
+    list.forEach(o => {
+      if (filter && (o.status||'new') !== filter) return;
+      // 今天合計（未必需要，只是方便看數字）
+      if (String(o.time||'').startsWith(todayStr)) totalToday += o.totalCalc;
+      ordersDiv.appendChild(renderCard(o));
+    });
+
+    totalTodayEl.textContent = `今天總金額（篩選前）：$${list
+      .filter(o => String(o.time||'').startsWith(todayStr))
+      .reduce((s,o)=>s+o.totalCalc,0)}`;
+  }
+
+  // 6) 監聽資料變化
+  const ordersRef = db.ref('orders');
+
+  // 初次載入 & 之後任何變化都更新
+  ordersRef.on('value', snap => {
+    const val = snap.val() || {};
+    const entries = Object.entries(val).map(([id, o]) => ({
+      id,
+      table: o.table,
+      time: o.time,
+      items: o.items,
+      status: o.status || 'new',
+      totalCalc: Number(o.total || calcTotal(o.items))
+    }));
+    allOrders = entries;
+    renderList();
+  });
+
+  // 7) 事件：變更狀態 / 刪除單
+  ordersDiv.addEventListener('change', e => {
+    const sel = e.target;
+    if (sel.dataset.action === 'status') {
+      const id = sel.dataset.id;
+      db.ref(`orders/${id}/status`).set(sel.value);
+    }
+  });
+  ordersDiv.addEventListener('click', e => {
+    const btn = e.target;
+    if (btn.dataset.action === 'delete') {
+      const id = btn.dataset.id;
+      if (confirm('確定刪除這筆訂單？')) db.ref(`orders/${id}`).remove();
+    }
+  });
+
+  // 8) 匯出 CSV
+  exportBtn.addEventListener('click', () => {
+    const header = ['id','table','time','status','name','price','qty','subtotal','orderTotal'];
+    const rows = [header];
+    allOrders.forEach(o => {
+      const items = Array.isArray(o.items) ? o.items : Object.values(o.items||{});
+      items.forEach(it => {
+        const sub = Number(it.price||0) * Number(it.quantity||0);
+        rows.push([
+          o.id, o.table||'', o.time||'', o.status||'new',
+          it.name||'', Number(it.price||0), Number(it.quantity||0), sub, o.totalCalc
+        ]);
+      });
+    });
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `orders_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  // 篩選重畫
+  statusFilterEl.addEventListener('change', renderList);
+</script>
+</body>
+</html>
