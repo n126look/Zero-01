@@ -1,109 +1,214 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>後台管理</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Firebase v8 -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .order { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
-    select, button { margin-top: 5px; }
+    :root {
+      --bg: #f7f7f8;
+      --card: #fff;
+      --text: #222;
+      --muted: #666;
+      --line: #e8e8ee;
+      --accent: #4f46e5;
+      --danger: #e11d48;
+      --ok: #16a34a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 24px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans TC', Arial, 'PingFang TC', 'Heiti TC', sans-serif;
+      color: var(--text); background: var(--bg);
+    }
+    h1 { margin: 0 0 20px; font-size: 22px; }
+    #orders { display: grid; gap: 16px; }
+    .order {
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      padding: 16px;
+    }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .meta { color: var(--muted); font-size: 14px; }
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px;
+      border: 1px solid var(--line); color: var(--muted); background:#fafafa;
+    }
+    .total { margin-left: auto; font-weight: 700; }
+    .items { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 10px; }
+    .item { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 6px 0; }
+    .item .name { font-weight: 600; }
+    .item .note { color: var(--muted); font-size: 12px; }
+    .item .qty, .item .price { color: var(--muted); font-size: 14px; }
+    .controls { display: flex; gap: 8px; margin-top: 12px; }
+    select, button {
+      height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line);
+      background: #fff; color: var(--text); font-size: 14px;
+    }
+    button.primary { background: var(--accent); color: #fff; border-color: transparent; }
+    button.danger { background: var(--danger); color: #fff; border-color: transparent; }
+    .empty { color: var(--muted); font-size: 14px; }
+    .sum { margin: 16px 0 24px; color: var(--muted); font-size: 14px; }
   </style>
 </head>
 <body>
   <h1>訂單管理</h1>
+  <div class="sum" id="summary"></div>
   <div id="orders"></div>
 
   <script>
-    // Firebase 設定
+    // TODO: 換成你的 Firebase 專案設定
     const firebaseConfig = {
       apiKey: "你的API_KEY",
       authDomain: "zero-01-17457.firebaseapp.com",
       databaseURL: "https://zero-01-17457-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "zero-01-17457",
       storageBucket: "zero-01-17457.appspot.com",
-      messagingSenderId: "發送ID",
-      appId: "你的APP_ID"
+      messagingSenderId: "你的SenderId",
+      appId: "你的AppId"
     };
     firebase.initializeApp(firebaseConfig);
 
-    const ordersRef = firebase.database().ref("orders");
+    const db = firebase.database();
+    const ordersRef = db.ref("orders");
 
-    // 狀態選項
-    const statusOptions = ["new", "preparing", "served", "paid"];
+    const fmt = (n) => new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 0 }).format(n);
 
-    // 監聽訂單資料
-    ordersRef.on("value", snapshot => {
-      const ordersContainer = document.getElementById("orders");
-      ordersContainer.innerHTML = "";
-      const orders = snapshot.val();
-      if (!orders) {
-        ordersContainer.textContent = "目前沒有訂單";
+    // 依規則循環狀態
+    function nextStatus(s) {
+      const flow = ["new", "preparing", "served", "paid"];
+      const i = flow.indexOf(s);
+      return flow[(i + 1) % flow.length];
+    }
+
+    // 計算訂單總金額
+    function calcTotal(order) {
+      let sum = 0;
+      if (order && order.items) {
+        Object.values(order.items).forEach(it => {
+          const price = Number(it.price) || 0;
+          const qty = Number(it.quantity) || 0;
+          sum += price * qty;
+        });
+      }
+      return sum;
+    }
+
+    // 渲染一筆訂單
+    function renderOrder(orderId, order) {
+      const card = document.createElement("div");
+      card.className = "order";
+
+      const total = calcTotal(order);
+      const header = document.createElement("div");
+      header.className = "row";
+      header.innerHTML = `
+        <div>
+          <div><strong>桌號：</strong>${order.table || "-"}</div>
+          <div class="meta">時間：${order.time || "-"}</div>
+        </div>
+        <span class="badge">${order.status || "new"}</span>
+        <div class="total">總金額：$${fmt(total)}</div>
+      `;
+      card.appendChild(header);
+
+      // 餐點列表
+      const itemsWrap = document.createElement("div");
+      itemsWrap.className = "items";
+      const items = order.items || {};
+      const ids = Object.keys(items);
+      if (ids.length === 0) {
+        itemsWrap.innerHTML = `<div class="empty">（此訂單沒有餐點明細）</div>`;
+      } else {
+        ids.forEach(k => {
+          const it = items[k] || {};
+          const name = it.name || "(未命名)";
+          const qty = Number(it.quantity) || 0;
+          const price = Number(it.price) || 0;
+          const subtotal = price * qty;
+          const note = (it.note && String(it.note).trim()) ? ` <span class="note">備註：${String(it.note).trim()}</span>` : "";
+
+          const row = document.createElement("div");
+          row.className = "item";
+          row.innerHTML = `
+            <div>
+              <span class="name">${name}</span>
+              ${note}
+              <div class="qty">數量：${qty}</div>
+              <div class="price">單價：$${fmt(price)}</div>
+            </div>
+            <div class="price">小計：$${fmt(subtotal)}</div>
+          `;
+          itemsWrap.appendChild(row);
+        });
+      }
+      card.appendChild(itemsWrap);
+
+      // 操作列（狀態切換 / 刪除）
+      const controls = document.createElement("div");
+      controls.className = "controls";
+
+      const statusBtn = document.createElement("button");
+      statusBtn.className = "primary";
+      statusBtn.textContent = "下一狀態";
+      statusBtn.addEventListener("click", () => {
+        const now = order.status || "new";
+        const ns = nextStatus(now);
+        db.ref(`orders/${orderId}/status`).set(ns)
+          .catch(err => alert("更新失敗：" + err.message));
+      });
+
+      const delBtn = document.createElement("button");
+      delBtn.className = "danger";
+      delBtn.textContent = "刪除訂單";
+      delBtn.addEventListener("click", () => {
+        if (!confirm(`確定刪除訂單 ${orderId} ？`)) return;
+        db.ref(`orders/${orderId}`).remove()
+          .catch(err => alert("刪除失敗：" + err.message));
+      });
+
+      controls.appendChild(statusBtn);
+      controls.appendChild(delBtn);
+      card.appendChild(controls);
+
+      return card;
+    }
+
+    // 監聽並渲染所有訂單
+    ordersRef.on("value", snap => {
+      const ordersDom = document.getElementById("orders");
+      const summaryDom = document.getElementById("summary");
+      ordersDom.innerHTML = "";
+
+      const data = snap.val();
+      if (!data) {
+        summaryDom.textContent = "目前沒有訂單。";
         return;
       }
 
-      Object.keys(orders).forEach(orderId => {
-        const order = orders[orderId];
-        const div = document.createElement("div");
-        div.classList.add("order");
-
-        // 計算總金額
-        let orderTotal = 0;
-        if (order.items) {
-          Object.values(order.items).forEach(item => {
-            const price = parseFloat(item.price) || 0;
-            const qty   = parseFloat(item.quantity) || 0;
-            orderTotal += price * qty;
-          });
-        }
-
-        // 狀態下拉選單
-        const statusSelect = document.createElement("select");
-        statusOptions.forEach(st => {
-          const option = document.createElement("option");
-          option.value = st;
-          option.textContent = st;
-          if (order.status === st) option.selected = true;
-          statusSelect.appendChild(option);
-        });
-        statusSelect.addEventListener("change", () => {
-          updateOrderStatus(orderId, statusSelect.value);
-        });
-
-        // 刪除按鈕
-        const deleteBtn = document.createElement("button");
-        deleteBtn.textContent = "刪除訂單";
-        deleteBtn.addEventListener("click", () => {
-          deleteOrder(orderId);
-        });
-
-        div.innerHTML = `
-          <p><b>桌號：</b>${order.table || "未指定"}</p>
-          <p><b>時間：</b>${order.time || "未知"}</p>
-          <p><b>總金額：</b>$${orderTotal.toLocaleString()}</p>
-        `;
-
-        div.appendChild(statusSelect);
-        div.appendChild(deleteBtn);
-        ordersContainer.appendChild(div);
+      // 依時間排序（若有 time 欄位）
+      const entries = Object.entries(data).sort((a, b) => {
+        const ta = Date.parse(a[1]?.time || 0);
+        const tb = Date.parse(b[1]?.time || 0);
+        return tb - ta; // 新到舊
       });
+
+      // 今日總營業額（僅計 paid / 或全部？這裡顯示全部合計）
+      let grand = 0;
+      entries.forEach(([id, order]) => grand += calcTotal(order));
+      summaryDom.textContent = `目前訂單數：${entries.length}，總金額：$${fmt(grand)}`;
+
+      entries.forEach(([id, order]) => {
+        ordersDom.appendChild(renderOrder(id, order));
+      });
+    }, err => {
+      alert("讀取失敗：" + err.message);
     });
-
-    // 更新訂單狀態
-    function updateOrderStatus(orderId, newStatus) {
-      firebase.database().ref(`orders/${orderId}/status`).set(newStatus)
-        .catch(err => alert("更新失敗：" + err.message));
-    }
-
-    // 刪除訂單
-    function deleteOrder(orderId) {
-      if (confirm(`確定刪除訂單 ${orderId} 嗎？`)) {
-        firebase.database().ref(`orders/${orderId}`).remove()
-          .catch(err => alert("刪除失敗：" + err.message));
-      }
-    }
   </script>
 </body>
 </html>
+
 
