@@ -7,5 +7,8 @@
   "item06": { "name": "餛飩麵", "price": 60,  "category": "主食", "enable_note": false },
   "item07": { "name": "燙青菜",   "price": 35,  "category": "小菜", "enable_note": false },
   "item08": { "name": "飲料",   "price": 20,  "category": "飲料", "enable_note": false },
-  "item09": { "name": "珍珠奶茶", "price": 55, "category": "飲料", "enable_note": true }
+  "item09": { "name": "牛肉湯", "price": 100, "category": "湯品", "enable_note": true },
+  "item10": { "name": "餛飩湯", "price": 50, "category": "湯品", "enable_note": true },
+  "item11": { "name": "蛋花湯", "price": 30, "category": "湯品", "enable_note": true },
+  "item12": { "name": "酸辣湯", "price": 50, "category": "湯品", "enable_note": true }
 }
