@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>點餐系統</title>
 
-  <!-- 使用 compat 版 SDK，方便在 <script> 直接使用全域 firebase 物件 -->
+  <!-- Firebase（compat 版，方便以全域 firebase 使用） -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
   <style>
+    :root { color-scheme: light dark; }
     body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", Arial;
            padding: 1rem; background: #f7f7f7; }
     h1, h2 { color: #333; }
@@ -25,7 +26,7 @@
       background: #0d6efd; color: #fff; border: none; border-radius: 8px; cursor: pointer;
     }
     button:hover { background:#0b5ed7; }
-    .message { margin-top: 1rem; font-weight: 700; }
+    .message { margin-top: 1rem; font-weight: 700; min-height: 1.25rem; }
     .ok { color:#0a7d39; } .err { color:#b3261e; }
   </style>
 </head>
@@ -36,7 +37,21 @@
   <div class="message" id="message"></div>
 
   <script>
-    // === 1) Firebase 設定 ===
+    // === 0) 小工具 ===
+    const byId = (id) => document.getElementById(id);
+    const menuDiv = byId("menu");
+    const messageDiv = byId("message");
+    const submitBtn = byId("submit");
+    const currentTable = new URLSearchParams(location.search).get("table") || "01";
+
+    const state = {
+      // 來源紀錄：'firebase' 或 'json'
+      source: null,
+      // 最新載入到的菜單資料（object）
+      menuData: null
+    };
+
+    // === 1) 初始化 Firebase ===
     const firebaseConfig = {
       apiKey: "AIzaSyDaC14zf1ZxOsd-twyjzSgTIcNBwty1Is",
       authDomain: "zero-01-17457.firebaseapp.com",
@@ -44,112 +59,142 @@
       storageBucket: "zero-01-17457.appspot.com",
       messagingSenderId: "534119998616",
       appId: "1:534119998616:web:ec3b6c2d48318f9c51ced",
-      // ✅ 使用你資料庫實際所在區域（Singapore）
+      // ✅ 使用你資料庫的實際區域（Singapore）
       databaseURL: "https://zero-01-17457-default-rtdb.asia-southeast1.firebasedatabase.app"
     };
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    let db = null;
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+    } catch (e) {
+      console.warn("Firebase 初始化失敗，將以 JSON 備援：", e);
+    }
 
-    // === 2) DOM 參照 ===
-    const menuDiv = document.getElementById("menu");
-    const messageDiv = document.getElementById("message");
-    const submitBtn = document.getElementById("submit");
-    const currentTable = new URLSearchParams(location.search).get("table") || "01";
-
-    // === 3) 載入菜單 ===
-    const menuRef = db.ref("menu_items");
-    menuRef.once("value")
-      .then(snapshot => {
-        const data = snapshot.val();
-        if (!data) {
-          menuDiv.innerHTML = "<p>尚無菜單資料。</p>";
-          return;
+    // === 2) 優先讀 Firebase，失敗則讀本地 JSON ===
+    async function loadMenu() {
+      // 2-1 先試 Firebase
+      if (db) {
+        try {
+          const snapshot = await db.ref("menu_items").once("value");
+          const data = snapshot.val();
+          if (data && Object.keys(data).length) {
+            state.source = "firebase";
+            state.menuData = data;
+            console.info("✅ 菜單來源：Firebase");
+            renderMenu(data);
+            return;
+          }
+          console.warn("Firebase /menu_items 沒資料，改讀 JSON。");
+        } catch (err) {
+          console.warn("讀取 Firebase 失敗，改讀 JSON：", err);
         }
+      }
 
-        // 依分類分組
-        const grouped = {};
-        Object.entries(data).forEach(([id, item]) => {
-          const cat = item.category || "其他";
-          (grouped[cat] ||= []).push({ ...item, id });
-        });
-
-        // 生成畫面
-        Object.entries(grouped).forEach(([cat, items]) => {
-          const title = document.createElement("h2");
-          title.textContent = cat;
-          menuDiv.appendChild(title);
-
-          items.forEach(item => {
-            const card = document.createElement("div");
-            card.className = "item";
-            card.innerHTML = `
-              <div class="row">
-                <span class="name">${item.name}</span>
-                <span class="price">＄${item.price}</span>
-                <label>數量：
-                  <input class="qty" type="number" min="0" value="0" id="qty-${item.id}">
-                </label>
-                ${item.enable_note ? `
-                  <input class="note" type="text" id="note-${item.id}" placeholder="備註（可留空）">` : ""}
-              </div>
-            `;
-            menuDiv.appendChild(card);
-          });
-        });
-      })
-      .catch(err => {
+      // 2-2 讀本地 JSON（需與 index.html 放同層）
+      try {
+        const res = await fetch("menu_items.json", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        state.source = "json";
+        state.menuData = data;
+        console.info("✅ 菜單來源：menu_items.json");
+        renderMenu(data);
+      } catch (err) {
         messageDiv.className = "message err";
-        messageDiv.textContent = `⚠️ 無法載入菜單：${err.message}`;
+        messageDiv.textContent = `⚠️ 無法取得菜單（Firebase 與 JSON 皆失敗）：${err.message}`;
+      }
+    }
+
+    // === 3) 依資料渲染畫面 ===
+    function renderMenu(rawData) {
+      // 將資料以分類分組
+      const grouped = {};
+      Object.entries(rawData).forEach(([id, item]) => {
+        const cat = item.category || "其他";
+        (grouped[cat] ||= []).push({ ...item, id });
       });
 
-    // === 4) 送出訂單 ===
-    submitBtn.addEventListener("click", () => {
+      // 清空
+      menuDiv.innerHTML = "";
+
+      // 生成分類與品項
+      Object.entries(grouped).forEach(([cat, items]) => {
+        const title = document.createElement("h2");
+        title.textContent = cat;
+        menuDiv.appendChild(title);
+
+        items.forEach(item => {
+          const card = document.createElement("div");
+          card.className = "item";
+          card.innerHTML = `
+            <div class="row">
+              <span class="name">${item.name}</span>
+              <span class="price">＄${item.price}</span>
+              <label>數量：
+                <input class="qty" type="number" min="0" value="0" id="qty-${item.id}">
+              </label>
+              ${item.enable_note ? `
+                <input class="note" type="text" id="note-${item.id}" placeholder="備註（可留空）">` : ""}
+            </div>
+          `;
+          menuDiv.appendChild(card);
+        });
+      });
+    }
+
+    // === 4) 送出訂單（若來源是 JSON，就只在前端驗證並提示；若是 Firebase，才真的 push） ===
+    submitBtn.addEventListener("click", async () => {
       messageDiv.textContent = "";
       messageDiv.className = "message";
 
-      menuRef.once("value")
-        .then(snapshot => {
-          const data = snapshot.val() || {};
-          const items = [];
+      const data = state.menuData || {};
+      const items = [];
 
-          for (const id of Object.keys(data)) {
-            const qtyEl = document.getElementById(`qty-${id}`);
-            if (!qtyEl) continue;
-            const qty = parseInt(qtyEl.value, 10) || 0;
-            if (qty > 0) {
-              const noteEl = document.getElementById(`note-${id}`);
-              const note = noteEl ? (noteEl.value || "").trim() : "";
-              items.push({ name: data[id].name, quantity: qty, note });
-            }
-          }
+      for (const id of Object.keys(data)) {
+        const qtyEl = byId(`qty-${id}`);
+        if (!qtyEl) continue;
+        const qty = parseInt(qtyEl.value, 10) || 0;
+        if (qty > 0) {
+          const noteEl = byId(`note-${id}`);
+          const note = noteEl ? (noteEl.value || "").trim() : "";
+          items.push({ name: data[id].name, quantity: qty, note });
+        }
+      }
 
-          if (items.length === 0) {
-            messageDiv.className = "message err";
-            messageDiv.textContent = "⚠️ 請至少選擇一項餐點";
-            return;
-          }
+      if (items.length === 0) {
+        messageDiv.className = "message err";
+        messageDiv.textContent = "⚠️ 請至少選擇一項餐點";
+        return;
+      }
 
-          const order = {
-            table: currentTable,
-            time: new Date().toISOString(),
-            items
-          };
+      const order = {
+        table: currentTable,
+        time: new Date().toISOString(),
+        items
+      };
 
-          return db.ref("orders").push(order);
-        })
-        .then(() => {
-          if (!messageDiv.textContent) {
-            messageDiv.className = "message ok";
-            messageDiv.textContent = "✅ 訂單送出成功，請稍候上菜！";
-            setTimeout(() => location.reload(), 1500);
-          }
-        })
-        .catch(err => {
+      // 來源不同，處理不同
+      if (state.source === "firebase" && db) {
+        try {
+          await db.ref("orders").push(order);
+          messageDiv.className = "message ok";
+          messageDiv.textContent = "✅ 訂單送出成功，請稍候上菜！";
+          setTimeout(() => location.reload(), 1500);
+        } catch (err) {
           messageDiv.className = "message err";
           messageDiv.textContent = `⚠️ 訂單送出失敗：${err.message}`;
-        });
+        }
+      } else {
+        // JSON 備援模式：不具備寫入功能，只做成功提示
+        console.log("（備援）以下訂單僅於前端記錄：", order);
+        messageDiv.className = "message ok";
+        messageDiv.textContent = "✅ 已記錄您的選擇（目前為離線/JSON 模式，不會寫入雲端）";
+      }
     });
+
+    // 啟動
+    loadMenu();
   </script>
 </body>
 </html>
