@@ -3,7 +3,7 @@
   "item02": { "name": "牛肉飯", "price": 120,  "category": "主食", "enable_note": false },
   "item03": { "name": "高麗菜水餃", "price": 5,  "category": "主食", "enable_note": false },
   "item04": { "name": "韭菜水餃", "price": 5,  "category": "主食", "enable_note": false },
-  "item05": { "name": "酸辣麵(小)", "price": 50,  "category": "主食", "enable_note": false },
+  "item05": { "name": "酸辣麵小", "price": 50,  "category": "主食", "enable_note": false },
   "item06": { "name": "餛飩麵", "price": 60,  "category": "主食", "enable_note": false },
   "item07": { "name": "燙青菜",   "price": 35,  "category": "小菜", "enable_note": false },
   "item08": { "name": "飲料",   "price": 20,  "category": "飲料", "enable_note": false },
