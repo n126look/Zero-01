@@ -1,0 +1,9 @@
+{
+  "menu_items": {
+    "item01": { "name": "雞腿飯", "price": 120, "category": "主食", "enable_note": true },
+    "item02": { "name": "滷肉飯", "price": 60,  "category": "主食", "enable_note": false },
+    "item03": { "name": "青菜",   "price": 35,  "category": "小菜", "enable_note": false },
+    "item04": { "name": "紅茶",   "price": 30,  "category": "飲料", "enable_note": false },
+    "item05": { "name": "珍珠奶茶", "price": 55, "category": "飲料", "enable_note": true }
+  }
+}
