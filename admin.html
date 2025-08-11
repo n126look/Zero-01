@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>後台管理｜即時訂單</title>
+  <title>後台管理｜即時訂單 + 開桌控台</title>
 
   <!-- Firebase compat 版 -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -14,16 +14,32 @@
     * { box-sizing: border-box; }
     body { font-family: system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",Arial; margin:0; background:#f6f7f9; }
     header { position:sticky; top:0; z-index:5; background:#fff; border-bottom:1px solid #e9ecef; padding:12px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-    h1 { margin:0; font-size:1.25rem; }
-    select, button { font:inherit; }
-    main { padding:16px; }
+    h1 { margin:0; font-size:1.1rem; }
+    select, button, input { font:inherit; }
+    main { padding:16px; display:grid; grid-template-columns: 360px 1fr; gap:16px; align-items:start; }
 
-    .toolbar { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .tag { padding:2px 8px; border-radius:999px; font-size:.85rem; border:1px solid #e1e5ea; background:#fff; }
+    /* 開桌控台 */
+    .panel { background:#fff; border:1px solid #e9ecef; border-radius:12px; padding:12px; box-shadow:0 2px 10px rgba(0,0,0,.03); }
+    .panel h2 { margin:0 0 8px; font-size:1rem; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0; }
+    .row input[type="text"] { width:72px; padding:8px; border:1px solid #d0d7de; border-radius:8px; }
+    .row input[type="number"] { width:120px; padding:8px; border:1px solid #d0d7de; border-radius:8px; }
+    .panel button { padding:8px 12px; border-radius:10px; border:1px solid #d0d7de; background:#fff; cursor:pointer; }
+    .panel button.primary { background:#0d6efd; color:#fff; border-color:#0d6efd; }
+    .panel button.danger  { border-color:#e11d48; color:#e11d48; }
+    .muted { color:#6c757d; }
     .ok { color:#0a7d39; }
     .err { color:#b3261e; }
-    .muted { color:#6c757d; }
+    .grid { display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; max-height:50vh; overflow:auto; margin-top:8px; }
+    .card { border:1px solid #e9ecef; border-radius:10px; padding:10px; background:#fafbfc; }
+    .card .title { font-weight:700; }
+    .badge { padding:2px 8px; border-radius:999px; font-size:.8rem; border:1px solid #e3e7ee; }
+    .badge.open { background:#e7f1ff; color:#0b5ed7; }
+    .badge.closed { background:#eef0f2; color:#334155; }
 
+    /* 訂單清單 */
+    .toolbar { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .tag { padding:2px 8px; border-radius:999px; font-size:.85rem; border:1px solid #e1e5ea; background:#fff; }
     .order { background:#fff; border:1px solid #e9ecef; border-radius:12px; padding:12px; margin:12px 0; box-shadow:0 2px 10px rgba(0,0,0,.03); }
     .order-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
     .order-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding:2px 6px; border:1px solid #e9ecef; border-radius:6px; background:#f8f9fa; }
@@ -41,20 +57,17 @@
     .price, .qty, .line { text-align:right; white-space:nowrap; }
     .sum { margin-top:8px; display:flex; justify-content:flex-end; gap:12px; align-items:center; }
     .sum .warn { color:#b3261e; font-weight:700; }
-
     .ops { margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .ops select { padding:6px 8px; border-radius:8px; border:1px solid #d0d7de; background:#fff; }
     .ops button { padding:8px 12px; border-radius:10px; border:1px solid #d0d7de; background:#fff; cursor:pointer; }
     .ops button.danger { border-color:#e11d48; color:#e11d48; }
     .ops button:disabled { opacity:.6; cursor:not-allowed; }
-
     .empty { text-align:center; color:#6c757d; margin-top:40px; }
   </style>
 </head>
 <body>
   <header>
-    <h1>🍽️ 後台管理（即時訂單）</h1>
-
+    <h1>🍽️ 後台管理</h1>
     <div class="toolbar">
       <label>狀態篩選：
         <select id="filter">
@@ -70,12 +83,37 @@
   </header>
 
   <main>
-    <div id="list"></div>
-    <div id="empty" class="empty" style="display:none;">目前沒有訂單</div>
+    <!-- 左側：開桌控台 -->
+    <section class="panel">
+      <h2>🔓 開桌控台</h2>
+      <div class="row">
+        <label>桌號：
+          <input id="tb" type="text" placeholder="01" maxlength="2">
+        </label>
+        <label>時長（分鐘）：
+          <input id="mins" type="number" min="5" step="5" value="180">
+        </label>
+      </div>
+      <div class="row">
+        <button class="primary" id="btnOpen">開桌 / 續桌</button>
+        <button id="btnExtend">延長 30 分</button>
+        <button class="danger" id="btnClose">關桌</button>
+      </div>
+      <div id="sessMsg" class="muted" style="margin-top:6px;"></div>
+
+      <h2 style="margin-top:14px;">📋 桌況總覽</h2>
+      <div id="tablesGrid" class="grid"></div>
+    </section>
+
+    <!-- 右側：即時訂單 -->
+    <section>
+      <div id="list"></div>
+      <div id="empty" class="empty" style="display:none;">目前沒有訂單</div>
+    </section>
   </main>
 
   <script>
-    // ===== Firebase 設定 =====
+    // ===== Firebase =====
     const firebaseConfig = {
       apiKey: "AIzaSyDaC14zf1ZxOsd-twyjzSgTIcNBwty1Is",
       authDomain: "zero-01-17457.firebaseapp.com",
@@ -88,32 +126,139 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     const ordersRef = db.ref("orders");
+    const tablesRef = db.ref("tables");
 
-    // ===== UI & 狀態 =====
-    const $ = (id)=>document.getElementById(id);
-    const fmt = new Intl.NumberFormat('zh-TW');
+    // ===== 共用 =====
+    const $ = id => document.getElementById(id);
+    const fmt = new Intl.NumberFormat("zh-TW");
     const statusFlow = ["new","preparing","served","paid"];
-    let allOrders = {};     // { orderId: {...} }
-    let currentFilter = "all";
 
-    $("filter").addEventListener("change", ()=>{
-      currentFilter = $("filter").value;
-      render(allOrders);
+    // ====== 開桌控台 ======
+    let tablesCache = {}; // { "01": { session: {id, openedAt, expiresAt}, ... } }
+
+    function pad2(s){ return String(s).padStart(2, "0"); }
+    function normTable(str){
+      const t = String(str||"").trim();
+      if (!/^\d{1,2}$/.test(t)) return null;
+      const n = Number(t);
+      if (n < 1 || n > 99) return null;
+      return pad2(n);
+    }
+    function genSessionId(){
+      return Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+    }
+
+    async function openTable(){
+      const t = normTable($("tb").value);
+      if (!t){ $("sessMsg").textContent = "請輸入 01~99 的桌號"; $("sessMsg").className = "err"; return; }
+      const mins = Math.max(5, Number($("mins").value||0));
+      const now = Date.now();
+      const expiresAt = now + mins*60*1000;
+
+      const sid = genSessionId();
+      const session = { id: sid, openedAt: now, expiresAt };
+
+      try{
+        await tablesRef.child(t).child("session").set(session);
+        $("sessMsg").textContent = `桌號 ${t} 已開桌 / 續桌，Session: ${sid}，將於 ${new Date(expiresAt).toLocaleString()} 到期。`;
+        $("sessMsg").className = "ok";
+      }catch(e){
+        $("sessMsg").textContent = "開桌失敗：" + e.message;
+        $("sessMsg").className = "err";
+      }
+    }
+
+    async function extendTable(){
+      const t = normTable($("tb").value);
+      if (!t){ $("sessMsg").textContent = "請先輸入桌號"; $("sessMsg").className = "err"; return; }
+      try{
+        const snap = await tablesRef.child(t).child("session").get();
+        const s = snap.val();
+        if (!s || !s.expiresAt){ $("sessMsg").textContent = "此桌尚未開桌"; $("sessMsg").className = "err"; return; }
+        const newExp = Math.max(Date.now(), Number(s.expiresAt)) + 30*60*1000;
+        await tablesRef.child(t).child("session").child("expiresAt").set(newExp);
+        $("sessMsg").textContent = `桌號 ${t} 已延長至 ${new Date(newExp).toLocaleString()}`;
+        $("sessMsg").className = "ok";
+      }catch(e){
+        $("sessMsg").textContent = "延長失敗：" + e.message;
+        $("sessMsg").className = "err";
+      }
+    }
+
+    async function closeTable(){
+      const t = normTable($("tb").value);
+      if (!t){ $("sessMsg").textContent = "請先輸入桌號"; $("sessMsg").className = "err"; return; }
+      try{
+        await tablesRef.child(t).child("session").remove();
+        $("sessMsg").textContent = `桌號 ${t} 已關桌`;
+        $("sessMsg").className = "ok";
+      }catch(e){
+        $("sessMsg").textContent = "關桌失敗：" + e.message;
+        $("sessMsg").className = "err";
+      }
+    }
+
+    $("btnOpen").onclick = openTable;
+    $("btnExtend").onclick = extendTable;
+    $("btnClose").onclick = closeTable;
+
+    // 桌況即時監聽 + UI
+    tablesRef.on("value", snap=>{
+      tablesCache = snap.val() || {};
+      renderTables();
     });
 
-    // ===== 監聽訂單 =====
+    function renderTables(){
+      const wrap = $("tablesGrid");
+      wrap.innerHTML = "";
+      const keys = Object.keys(tablesCache).sort();
+      if (!keys.length){
+        wrap.innerHTML = `<div class="muted">尚無資料，開桌後會出現。</div>`;
+        return;
+      }
+      const now = Date.now();
+      keys.forEach(k=>{
+        const sess = tablesCache[k]?.session;
+        const open = !!(sess && sess.expiresAt > now);
+        const left = open ? Math.max(0, sess.expiresAt - now) : 0;
+        const mins = Math.floor(left/60000), secs = Math.floor((left%60000)/1000);
+        const div = document.createElement("div");
+        div.className = "card";
+        div.innerHTML = `
+          <div class="title">桌號 ${k}　<span class="badge ${open?'open':'closed'}">${open?'開桌中':'已關桌 / 過期'}</span></div>
+          ${
+            sess ? `
+            <div class="muted" style="margin-top:4px;">
+              id: <code>${sess.id}</code><br>
+              到期：${new Date(sess.expiresAt).toLocaleString()}<br>
+              ${open ? `倒數：${mins}分 ${secs}秒` : ""}
+            </div>` : `<div class="muted" style="margin-top:4px;">（無 session）</div>`
+          }
+        `;
+        wrap.appendChild(div);
+      });
+    }
+    // 每秒更新倒數
+    setInterval(renderTables, 1000);
+
+    // ====== 訂單監聽與渲染（你原本的功能保留） ======
+    let allOrders = {};
+    let currentFilter = "all";
+    $("filter").addEventListener("change", ()=>{
+      currentFilter = $("filter").value;
+      renderOrders(allOrders);
+    });
+
     ordersRef.on("value", snap=>{
       allOrders = snap.val() || {};
-      render(allOrders);
+      renderOrders(allOrders);
     }, err=>{
       $("info").textContent = "讀取失敗：" + err.message;
       $("info").className = "tag err";
     });
 
-    // ===== 渲染畫面 =====
-    function render(orders){
+    function renderOrders(orders){
       const keys = Object.keys(orders).sort((a,b)=>{
-        // 依時間新到舊
         const ta = Date.parse(orders[a]?.time||0);
         const tb = Date.parse(orders[b]?.time||0);
         return tb - ta;
@@ -130,7 +275,6 @@
 
         shown++;
 
-        // 重新試算合計
         let calc = 0;
         if (o.items && typeof o.items === "object") {
           Object.values(o.items).forEach(it=>{
@@ -205,14 +349,10 @@
     }
 
     function escapeHtml(s){
-      return String(s).replace(/[&<>"']/g, m => ({
-        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-      }[m]));
+      return String(s).replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
     }
 
-    // ===== 綁定操作 =====
     function bindOps(){
-      // 改狀態（選單）
       document.querySelectorAll("select.status").forEach(sel=>{
         sel.onchange = async ()=>{
           const id = sel.dataset.id;
@@ -228,7 +368,6 @@
         };
       });
 
-      // 下一步狀態
       document.querySelectorAll("button.next").forEach(btn=>{
         btn.onclick = async ()=>{
           const id = btn.dataset.id;
@@ -246,7 +385,6 @@
         };
       });
 
-      // 刪除訂單
       document.querySelectorAll("button.del").forEach(btn=>{
         btn.onclick = async ()=>{
           const id = btn.dataset.id;
