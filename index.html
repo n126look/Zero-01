@@ -25,7 +25,7 @@
     .price { color:#555; }
     .qty { width:88px; }
     .note { flex:1 1 220px; min-width:200px; }
-    /* 底部結帳列 */
+
     .checkout-bar {
       position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid #e5e5e5;
       padding:10px 12px; display:flex; align-items:center; gap:12px; z-index:10;
@@ -37,10 +37,10 @@
       background:#0d6efd; color:#fff; border:0; border-radius:10px; cursor:pointer;
     }
     button.primary[disabled] { opacity:.6; cursor:not-allowed; }
+
     .message { padding:10px 16px; min-height:1.25rem; font-weight:700; }
     .ok { color:#0a7d39; } .err { color:#b3261e; } .info { color:#0b5ed7; }
 
-    /* 簡易 Toast */
     .toast {
       position:fixed; left:50%; bottom:80px; transform:translateX(-50%);
       background:rgba(0,0,0,.85); color:#fff; padding:10px 14px; border-radius:10px;
@@ -49,10 +49,7 @@
     }
     .toast.show { opacity:1; }
 
-    /* 成功畫面 */
-    .success {
-      display:none; padding:24px; text-align:center;
-    }
+    .success { display:none; padding:24px; text-align:center; }
     .success h3 { margin:0 0 8px; }
     .success .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
                      background:#f1f3f5; border:1px dashed #cbd5e1; border-radius:8px;
@@ -60,9 +57,7 @@
   </style>
 </head>
 <body>
-  <header>
-    <h1>📋 手機點餐</h1>
-  </header>
+  <header><h1>📋 手機點餐</h1></header>
 
   <main>
     <div id="menu"></div>
@@ -77,38 +72,31 @@
     </section>
   </main>
 
-  <!-- 底部結帳列 -->
   <div class="checkout-bar" id="checkoutBar">
     <div class="sum" id="total">合計金額：$0</div>
     <div class="muted" id="tableInfo"></div>
     <button class="primary" id="submitBtn" disabled>送出訂單</button>
   </div>
 
-  <!-- Toast -->
   <div class="toast" id="toast"></div>
 
   <script>
-    // ===== 工具 =====
+    // ========= 基本工具 =========
     const $ = (id) => document.getElementById(id);
     const fmt = new Intl.NumberFormat('zh-TW');
-
     function showToast(text, ms=1600) {
       const t = $("toast"); t.textContent = text; t.classList.add("show");
       setTimeout(()=> t.classList.remove("show"), ms);
     }
 
-    // ===== 狀態 =====
-    const currentTable = new URLSearchParams(location.search).get("table") || "01";
+    // ========= 狀態 =========
+    const qs = new URLSearchParams(location.search);
+    const currentTable = qs.get("table") || "01";
     $("tableInfo").textContent = `桌號：${currentTable}`;
     const STORAGE_KEY = `cart_${currentTable}`;
+    const state = { source: null, menu: {}, submitting: false };
 
-    const state = {
-      source: null,    // 'firebase' | 'json'
-      menu: {},        // { id: {name, price, category, enable_note} }
-      submitting: false
-    };
-
-    // ===== Firebase 設定 =====
+    // ========= Firebase 設定 =========
     const firebaseConfig = {
       apiKey: "AIzaSyDaC14zf1ZxOsd-twyjzSgTIcNBwty1Is",
       authDomain: "zero-01-17457.firebaseapp.com",
@@ -123,12 +111,20 @@
     try { firebase.initializeApp(firebaseConfig); db = firebase.database(); }
     catch(e){ console.warn("Firebase 初始化失敗，改用 JSON 備援：", e); }
 
-    // ===== 讀菜單（Firebase 優先，失敗讀 JSON）=====
+    // ========= 菜單來源控制 =========
+    // 版本參數：每次改價換一個新值（或改成 Date.now() 自動）
+    const MENU_VER = "2025-08-11-01";
+    const MENU_URL = `menu_items.json?v=${MENU_VER}`;
+    // URL 開關：?source=json 可強制使用 JSON（跳過 Firebase）
+    const sourceOverride = qs.get("source");
+
+    // ========= 讀菜單（Firebase 優先，失敗/覆蓋則用 JSON）=========
     async function loadMenu() {
       $("msg").className = "message info";
       $("msg").textContent = "正在載入菜單…";
 
-      if (db) {
+      // 若未指定 source=json，且 db 存在，嘗試讀 Firebase
+      if (db && sourceOverride !== "json") {
         try {
           const snap = await db.ref("menu_items").once("value");
           const data = snap.val();
@@ -136,7 +132,7 @@
             state.source = "firebase";
             state.menu = data;
             renderMenu(data);
-            restoreCart(); // 讀取暫存
+            restoreCart();
             updateTotal();
             $("msg").textContent = "";
             return;
@@ -146,7 +142,7 @@
 
       // 讀 JSON 備援
       try {
-        const res = await fetch("menu_items.json", { cache: "no-store" });
+        const res = await fetch(MENU_URL, { cache: "no-store" });
         if(!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         state.source = "json";
@@ -161,7 +157,7 @@
       }
     }
 
-    // ===== 渲染菜單 =====
+    // ========= 渲染菜單 =========
     function renderMenu(raw){
       const menu = $("menu");
       menu.innerHTML = "";
@@ -189,7 +185,6 @@
           `;
           menu.appendChild(card);
 
-          // 綁定事件：更新總價 & 儲存暫存
           const qtyEl = card.querySelector(`#qty-${item.id}`);
           qtyEl.addEventListener("input", ()=>{ clampQty(qtyEl); updateTotal(); saveCart(); });
           const noteEl = card.querySelector(`#note-${item.id}`);
@@ -201,11 +196,9 @@
     function clampQty(el){
       const v = parseInt(el.value || "0", 10);
       if (isNaN(v) || v < 0) el.value = 0;
-      // 也可選擇設定上限，例如 99：
-      // if (v > 99) el.value = 99;
     }
 
-    // ===== 暫存（依桌號分開）=====
+    // ========= 暫存（依桌號分開）=========
     function saveCart(){
       const data = {};
       Object.keys(state.menu).forEach(id=>{
@@ -231,7 +224,7 @@
       }catch{}
     }
 
-    // ===== 計算總價 & 控制送出鈕 =====
+    // ========= 計算總價 & 控制送出鈕 =========
     function updateTotal(){
       let total = 0, count = 0;
       Object.keys(state.menu).forEach(id=>{
@@ -245,11 +238,10 @@
       $("submitBtn").disabled = (count === 0) || state.submitting;
     }
 
-    // ===== 送出訂單 =====
+    // ========= 送出訂單 =========
     $("submitBtn").addEventListener("click", async ()=>{
       if (state.submitting) return;
-      state.submitting = true;
-      updateTotal();
+      state.submitting = true; updateTotal();
 
       const items = [];
       Object.keys(state.menu).forEach(id=>{
@@ -279,7 +271,6 @@
       if (state.source === "firebase" && db){
         try{
           const ref = await db.ref("orders").push(order);
-          // 清暫存 & 顯示成功畫面
           localStorage.removeItem(STORAGE_KEY);
           $("msg").className = "message ok";
           $("msg").textContent = "";
@@ -295,7 +286,6 @@
           state.submitting = false; btn.textContent = oldText; updateTotal();
         }
       } else {
-        // JSON 備援模式：不寫入雲端
         console.log("（JSON 模式）僅前端記錄：", order);
         $("msg").className = "message ok";
         $("msg").textContent = "✅ 已記錄您的選擇（目前為離線/JSON 模式）";
@@ -309,3 +299,4 @@
   </script>
 </body>
 </html>
+
