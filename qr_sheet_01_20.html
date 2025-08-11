@@ -4,10 +4,8 @@
   <meta charset="utf-8" />
   <title>Zero-01 桌號 QR 碼（01–20）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- QRCode.js（不需安裝，直接 CDN） -->
+  <!-- QRCode.js -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-
   <style>
     :root { --card-w: 360px; --gap: 16px; }
     body { font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans TC", Arial;
@@ -22,15 +20,24 @@
     .card {
       border: 1px solid #e5e5e5; border-radius: 12px;
       padding: 16px; background:#fff; box-shadow: 0 2px 10px rgba(0,0,0,.04);
+      display:flex; flex-direction:column; gap:10px;
     }
-    .title { font-weight: 700; margin-bottom: 8px; }
-    .url { font-size: 12px; color:#555; word-break: break-all; margin-top: 6px; }
+    .title { font-weight: 800; }
     .qr { display:flex; align-items:center; justify-content:center; height: 240px; }
-    .tip { font-size:12px; color:#888; margin-top: 8px; }
+    .url { font-size: 12px; color:#555; word-break: break-all; }
+    .actions { display:flex; gap:8px; flex-wrap: wrap; }
+    .btn {
+      font-size:12px; border:1px solid #e5e5e5; background:#f8f9fa; color:#333;
+      border-radius:8px; padding:6px 10px; cursor:pointer;
+    }
+    .btn:hover { background:#eef1f4; }
+    .tip { font-size:12px; color:#888; }
     @media print {
       body { margin: 0; }
       .grid { gap: 8px; }
       .card { box-shadow: none; border: 1px solid #bbb; }
+      .actions { display:none; }
+      a { color: #000; text-decoration: none; }
     }
   </style>
 </head>
@@ -44,40 +51,105 @@
   <div class="grid" id="grid"></div>
 
   <script>
-    // === 你只需要改這裡兩個參數 ===
-    const START_TABLE = 1;        // 起始桌號
-    const END_TABLE   = 20;       // 結束桌號
-    const BASE_URL    = "https://n126look.github.io/Zero-01/"; // 你的前端網址
+    // ===== 只需要調整這裡 =====
+    const START_TABLE = 1;   // 起始桌號
+    const END_TABLE   = 20;  // 結束桌號
 
-    // ==============================
-    document.getElementById('ts').textContent = new Date().toLocaleString('zh-TW');
+    // 你的點餐頁網址（根目錄或 index.html 皆可）
+    // 範例 1：根目錄（GitHub Pages 會自動指到 index.html）
+    // const BASE_URL = "https://n126look.github.io/Zero-01/";
+    // 範例 2：明確寫 index.html（也可以）
+    // const BASE_URL = "https://n126look.github.io/Zero-01/index.html";
+    const BASE_URL = "https://n126look.github.io/Zero-01/";
+
+    // 額外要附加的查詢參數（選填）
+    // 例如：強制使用 JSON 菜單 -> { source: "json" }
+    // 或帶版本號 -> { v: "2025-08-11-01" }
+    const EXTRA_PARAMS = {
+      // source: "json",
+      // v: "2025-08-11-01"
+    };
+    // ===========================
+
+    document.getElementById('ts').textContent =
+      new Date().toLocaleString('zh-TW', { hour12:false });
 
     const grid = document.getElementById('grid');
 
-    for (let t = START_TABLE; t <= END_TABLE; t++) {
-      const tableStr = String(t).padStart(2, '0');               // 01, 02, ...
-      const url = `${BASE_URL}?table=${tableStr}`;               // 每桌專屬連結
+    // 正規化 base，確保有 / 方便組合
+    function normalizeBase(url) {
+      // 如果已經包含 index.html 就直接回傳
+      if (/index\.html?$/.test(url)) return url;
+      // 沒有 index.html：確保最後有一個斜線
+      return url.endsWith('/') ? url : (url + '/');
+    }
 
-      // 卡片容器
+    function buildUrl(tableStr) {
+      const base = normalizeBase(BASE_URL);
+      // 如果 base 已經有 index.html，直接用它；否則給 base + '?table=xx'
+      const u = new URL(base, location.origin);
+      // 如果 base 本身沒 query，就在這裡加；若 base 已有 query 也會合併
+      u.searchParams.set('table', tableStr);
+      // 加上額外參數
+      for (const [k, v] of Object.entries(EXTRA_PARAMS)) {
+        u.searchParams.set(k, v);
+      }
+      return u.toString();
+    }
+
+    function downloadCanvasAsPng(canvas, filename){
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    for (let t = START_TABLE; t <= END_TABLE; t++) {
+      const tableStr = String(t).padStart(2, '0');
+      const url = buildUrl(tableStr);
+
       const card = document.createElement('div');
       card.className = 'card';
-
       card.innerHTML = `
         <div class="title">桌號 ${tableStr}</div>
         <div class="qr" id="qr-${tableStr}"></div>
-        <div class="url">${url}</div>
-        <div class="tip">請用相機掃描 QR 立即點餐</div>
+        <div class="url"><a href="${url}" target="_blank" rel="noopener">${url}</a></div>
+        <div class="actions">
+          <button class="btn" data-dl="${tableStr}">下載 PNG</button>
+          <a class="btn" href="${url}" target="_blank" rel="noopener">開啟測試</a>
+        </div>
+        <div class="tip">請用相機掃描 QR 即可開始點餐</div>
       `;
       grid.appendChild(card);
 
       // 產生 QR
-      new QRCode(document.getElementById(`qr-${tableStr}`), {
+      const qrWrap = document.getElementById(`qr-${tableStr}`);
+      const qr = new QRCode(qrWrap, {
         text: url,
         width: 220,
         height: 220,
         correctLevel: QRCode.CorrectLevel.H
       });
+
+      // 綁定下載 PNG
+      card.querySelector(`[data-dl="${tableStr}"]`).addEventListener('click', () => {
+        // qrcodejs 會在容器內放入 <img> 或 <canvas>，優先拿 canvas
+        const cvs = qrWrap.querySelector('canvas');
+        const img = qrWrap.querySelector('img');
+        if (cvs) {
+          downloadCanvasAsPng(cvs, `table_${tableStr}.png`);
+        } else if (img) {
+          // 若是 img，轉成 canvas 再存
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          downloadCanvasAsPng(canvas, `table_${tableStr}.png`);
+        }
+      });
     }
   </script>
 </body>
 </html>
+
