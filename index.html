@@ -68,7 +68,8 @@
       <p>您的訂單編號：</p>
       <p class="code" id="orderId">—</p>
       <p style="margin-top:8px;">請保持頁面或出示此畫面給服務人員。</p>
-      <button class="primary" onclick="location.href=location.pathname">回到點餐</button>
+      <!-- ▼ 修正：保留目前的 ?table= 參數回到點餐頁 -->
+      <button class="primary" onclick="location.href = location.pathname + location.search">回到點餐</button>
     </section>
   </main>
 
@@ -96,6 +97,9 @@
     const STORAGE_KEY = `cart_${currentTable}`;
     const state = { source: null, menu: {}, submitting: false };
 
+    // ▼ 新增：有效 session id（通過開桌檢查後取得）
+    let ACTIVE_SESSION_ID = null;
+
     // ========= Firebase 設定 =========
     const firebaseConfig = {
       apiKey: "AIzaSyDaC14zf1ZxOsd-twyjzSgTIcNBwty1Is",
@@ -115,6 +119,30 @@
     const MENU_VER = "2025-08-11-01";                 // 每次改價換新版本
     const MENU_URL = `menu_items.json?v=${MENU_VER}`; // 避免快取
     const sourceOverride = new URLSearchParams(location.search).get("source"); // ?source=json
+
+    // ========= 開桌 session 檢查（重要） =========
+    async function checkSession() {
+      // JSON 模式或本地測試時可放行（沒有 db）
+      if (!db) return true;
+
+      try {
+        const snap = await db.ref(`tables/${currentTable}/session`).once("value");
+        const sess = snap.val();
+        if (!sess || !sess.id || !sess.expiresAt || Number(sess.expiresAt) <= Date.now()) {
+          $("msg").className = "message err";
+          $("msg").textContent = "此桌尚未開桌或已結帳，請洽服務人員。";
+          $("submitBtn").disabled = true;
+          return false;
+        }
+        ACTIVE_SESSION_ID = String(sess.id);
+        return true;
+      } catch (e) {
+        $("msg").className = "message err";
+        $("msg").textContent = "讀取桌況失敗，請稍後重試或洽服務人員。";
+        $("submitBtn").disabled = true;
+        return false;
+      }
+    }
 
     // ========= 讀菜單（Firebase 優先，失敗/覆蓋則用 JSON）=========
     async function loadMenu() {
@@ -220,7 +248,7 @@
       }catch{}
     }
 
-    // ========= 統一的總價計算（避免從字串解析）=========
+    // ========= 統一的總價計算 =========
     function calcTotal(){
       let total = 0;
       Object.keys(state.menu).forEach(id=>{
@@ -264,9 +292,16 @@
         state.submitting = false; updateTotal(); return;
       }
 
-      const total = calcTotal(); // ★ 用函式計算，避免從文字抓錯
+      const total = calcTotal();
 
-      const order = { table: currentTable, time: new Date().toISOString(), items, total };
+      // ▼ 加入 sessionId，供 Rules 驗證
+      const order = {
+        table: currentTable,
+        sessionId: ACTIVE_SESSION_ID || null, // JSON 模式時可能為 null
+        time: new Date().toISOString(),
+        items,
+        total
+      };
 
       const btn = $("submitBtn");
       const oldText = btn.textContent;
@@ -299,8 +334,11 @@
       }
     });
 
-    // 啟動
-    loadMenu();
+    // ========= 啟動：先檢查開桌，再載菜單 =========
+    (async () => {
+      const ok = await checkSession();   // ★ 先做桌況驗證
+      if (ok) loadMenu();
+    })();
   </script>
 </body>
 </html>
