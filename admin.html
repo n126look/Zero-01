@@ -1,214 +1,270 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <title>後台管理</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Firebase v8 -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>後台管理｜即時訂單</title>
+
+  <!-- Firebase compat 版 -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
   <style>
-    :root {
-      --bg: #f7f7f8;
-      --card: #fff;
-      --text: #222;
-      --muted: #666;
-      --line: #e8e8ee;
-      --accent: #4f46e5;
-      --danger: #e11d48;
-      --ok: #16a34a;
-    }
+    :root { color-scheme: light; }
     * { box-sizing: border-box; }
-    body {
-      margin: 0; padding: 24px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans TC', Arial, 'PingFang TC', 'Heiti TC', sans-serif;
-      color: var(--text); background: var(--bg);
-    }
-    h1 { margin: 0 0 20px; font-size: 22px; }
-    #orders { display: grid; gap: 16px; }
-    .order {
-      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
-      padding: 16px;
-    }
-    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-    .meta { color: var(--muted); font-size: 14px; }
-    .badge {
-      display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px;
-      border: 1px solid var(--line); color: var(--muted); background:#fafafa;
-    }
-    .total { margin-left: auto; font-weight: 700; }
-    .items { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 10px; }
-    .item { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 6px 0; }
-    .item .name { font-weight: 600; }
-    .item .note { color: var(--muted); font-size: 12px; }
-    .item .qty, .item .price { color: var(--muted); font-size: 14px; }
-    .controls { display: flex; gap: 8px; margin-top: 12px; }
-    select, button {
-      height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line);
-      background: #fff; color: var(--text); font-size: 14px;
-    }
-    button.primary { background: var(--accent); color: #fff; border-color: transparent; }
-    button.danger { background: var(--danger); color: #fff; border-color: transparent; }
-    .empty { color: var(--muted); font-size: 14px; }
-    .sum { margin: 16px 0 24px; color: var(--muted); font-size: 14px; }
+    body { font-family: system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",Arial; margin:0; background:#f6f7f9; }
+    header { position:sticky; top:0; z-index:5; background:#fff; border-bottom:1px solid #e9ecef; padding:12px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    h1 { margin:0; font-size:1.25rem; }
+    select, button { font:inherit; }
+    main { padding:16px; }
+
+    .toolbar { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .tag { padding:2px 8px; border-radius:999px; font-size:.85rem; border:1px solid #e1e5ea; background:#fff; }
+    .ok { color:#0a7d39; }
+    .err { color:#b3261e; }
+    .muted { color:#6c757d; }
+
+    .order { background:#fff; border:1px solid #e9ecef; border-radius:12px; padding:12px; margin:12px 0; box-shadow:0 2px 10px rgba(0,0,0,.03); }
+    .order-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .order-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding:2px 6px; border:1px solid #e9ecef; border-radius:6px; background:#f8f9fa; }
+    .pill { padding:4px 8px; border-radius:999px; font-weight:700; border:1px solid #e3e7ee; }
+    .pill.new { background:#e7f1ff; color:#0b5ed7; }
+    .pill.preparing { background:#fff4e5; color:#b35c00; }
+    .pill.served { background:#e9f7ef; color:#0a7d39; }
+    .pill.paid { background:#eef0f2; color:#334155; }
+
+    .items { margin-top:8px; border-top:1px dashed #e5e7eb; padding-top:8px; }
+    .item-row { display:grid; grid-template-columns: 1fr auto auto; gap:8px; padding:6px 0; border-bottom:1px dotted #f1f3f5; }
+    .item-row:last-child { border-bottom:0; }
+    .name { font-weight:600; }
+    .note { color:#6b7280; font-size:.9rem; }
+    .price, .qty, .line { text-align:right; white-space:nowrap; }
+    .sum { margin-top:8px; display:flex; justify-content:flex-end; gap:12px; align-items:center; }
+    .sum .warn { color:#b3261e; font-weight:700; }
+
+    .ops { margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .ops select { padding:6px 8px; border-radius:8px; border:1px solid #d0d7de; background:#fff; }
+    .ops button { padding:8px 12px; border-radius:10px; border:1px solid #d0d7de; background:#fff; cursor:pointer; }
+    .ops button.danger { border-color:#e11d48; color:#e11d48; }
+    .ops button:disabled { opacity:.6; cursor:not-allowed; }
+
+    .empty { text-align:center; color:#6c757d; margin-top:40px; }
   </style>
 </head>
 <body>
-  <h1>訂單管理</h1>
-  <div class="sum" id="summary"></div>
-  <div id="orders"></div>
+  <header>
+    <h1>🍽️ 後台管理（即時訂單）</h1>
+
+    <div class="toolbar">
+      <label>狀態篩選：
+        <select id="filter">
+          <option value="all">全部</option>
+          <option value="new">new</option>
+          <option value="preparing">preparing</option>
+          <option value="served">served</option>
+          <option value="paid">paid</option>
+        </select>
+      </label>
+      <span id="info" class="tag muted"></span>
+    </div>
+  </header>
+
+  <main>
+    <div id="list"></div>
+    <div id="empty" class="empty" style="display:none;">目前沒有訂單</div>
+  </main>
 
   <script>
-    // TODO: 換成你的 Firebase 專案設定
+    // ===== Firebase 設定 =====
     const firebaseConfig = {
-      apiKey: "你的API_KEY",
+      apiKey: "AIzaSyDaC14zf1ZxOsd-twyjzSgTIcNBwty1Is",
       authDomain: "zero-01-17457.firebaseapp.com",
-      databaseURL: "https://zero-01-17457-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "zero-01-17457",
       storageBucket: "zero-01-17457.appspot.com",
-      messagingSenderId: "你的SenderId",
-      appId: "你的AppId"
+      messagingSenderId: "534119998616",
+      appId: "1:534119998616:web:ec3b6c2d48318f9c51ced",
+      databaseURL: "https://zero-01-17457-default-rtdb.asia-southeast1.firebasedatabase.app"
     };
     firebase.initializeApp(firebaseConfig);
-
     const db = firebase.database();
     const ordersRef = db.ref("orders");
 
-    const fmt = (n) => new Intl.NumberFormat("zh-TW", { minimumFractionDigits: 0 }).format(n);
+    // ===== UI & 狀態 =====
+    const $ = (id)=>document.getElementById(id);
+    const fmt = new Intl.NumberFormat('zh-TW');
+    const statusFlow = ["new","preparing","served","paid"];
+    let allOrders = {};     // { orderId: {...} }
+    let currentFilter = "all";
 
-    // 依規則循環狀態
-    function nextStatus(s) {
-      const flow = ["new", "preparing", "served", "paid"];
-      const i = flow.indexOf(s);
-      return flow[(i + 1) % flow.length];
-    }
-
-    // 計算訂單總金額
-    function calcTotal(order) {
-      let sum = 0;
-      if (order && order.items) {
-        Object.values(order.items).forEach(it => {
-          const price = Number(it.price) || 0;
-          const qty = Number(it.quantity) || 0;
-          sum += price * qty;
-        });
-      }
-      return sum;
-    }
-
-    // 渲染一筆訂單
-    function renderOrder(orderId, order) {
-      const card = document.createElement("div");
-      card.className = "order";
-
-      const total = calcTotal(order);
-      const header = document.createElement("div");
-      header.className = "row";
-      header.innerHTML = `
-        <div>
-          <div><strong>桌號：</strong>${order.table || "-"}</div>
-          <div class="meta">時間：${order.time || "-"}</div>
-        </div>
-        <span class="badge">${order.status || "new"}</span>
-        <div class="total">總金額：$${fmt(total)}</div>
-      `;
-      card.appendChild(header);
-
-      // 餐點列表
-      const itemsWrap = document.createElement("div");
-      itemsWrap.className = "items";
-      const items = order.items || {};
-      const ids = Object.keys(items);
-      if (ids.length === 0) {
-        itemsWrap.innerHTML = `<div class="empty">（此訂單沒有餐點明細）</div>`;
-      } else {
-        ids.forEach(k => {
-          const it = items[k] || {};
-          const name = it.name || "(未命名)";
-          const qty = Number(it.quantity) || 0;
-          const price = Number(it.price) || 0;
-          const subtotal = price * qty;
-          const note = (it.note && String(it.note).trim()) ? ` <span class="note">備註：${String(it.note).trim()}</span>` : "";
-
-          const row = document.createElement("div");
-          row.className = "item";
-          row.innerHTML = `
-            <div>
-              <span class="name">${name}</span>
-              ${note}
-              <div class="qty">數量：${qty}</div>
-              <div class="price">單價：$${fmt(price)}</div>
-            </div>
-            <div class="price">小計：$${fmt(subtotal)}</div>
-          `;
-          itemsWrap.appendChild(row);
-        });
-      }
-      card.appendChild(itemsWrap);
-
-      // 操作列（狀態切換 / 刪除）
-      const controls = document.createElement("div");
-      controls.className = "controls";
-
-      const statusBtn = document.createElement("button");
-      statusBtn.className = "primary";
-      statusBtn.textContent = "下一狀態";
-      statusBtn.addEventListener("click", () => {
-        const now = order.status || "new";
-        const ns = nextStatus(now);
-        db.ref(`orders/${orderId}/status`).set(ns)
-          .catch(err => alert("更新失敗：" + err.message));
-      });
-
-      const delBtn = document.createElement("button");
-      delBtn.className = "danger";
-      delBtn.textContent = "刪除訂單";
-      delBtn.addEventListener("click", () => {
-        if (!confirm(`確定刪除訂單 ${orderId} ？`)) return;
-        db.ref(`orders/${orderId}`).remove()
-          .catch(err => alert("刪除失敗：" + err.message));
-      });
-
-      controls.appendChild(statusBtn);
-      controls.appendChild(delBtn);
-      card.appendChild(controls);
-
-      return card;
-    }
-
-    // 監聽並渲染所有訂單
-    ordersRef.on("value", snap => {
-      const ordersDom = document.getElementById("orders");
-      const summaryDom = document.getElementById("summary");
-      ordersDom.innerHTML = "";
-
-      const data = snap.val();
-      if (!data) {
-        summaryDom.textContent = "目前沒有訂單。";
-        return;
-      }
-
-      // 依時間排序（若有 time 欄位）
-      const entries = Object.entries(data).sort((a, b) => {
-        const ta = Date.parse(a[1]?.time || 0);
-        const tb = Date.parse(b[1]?.time || 0);
-        return tb - ta; // 新到舊
-      });
-
-      // 今日總營業額（僅計 paid / 或全部？這裡顯示全部合計）
-      let grand = 0;
-      entries.forEach(([id, order]) => grand += calcTotal(order));
-      summaryDom.textContent = `目前訂單數：${entries.length}，總金額：$${fmt(grand)}`;
-
-      entries.forEach(([id, order]) => {
-        ordersDom.appendChild(renderOrder(id, order));
-      });
-    }, err => {
-      alert("讀取失敗：" + err.message);
+    $("filter").addEventListener("change", ()=>{
+      currentFilter = $("filter").value;
+      render(allOrders);
     });
+
+    // ===== 監聽訂單 =====
+    ordersRef.on("value", snap=>{
+      allOrders = snap.val() || {};
+      render(allOrders);
+    }, err=>{
+      $("info").textContent = "讀取失敗：" + err.message;
+      $("info").className = "tag err";
+    });
+
+    // ===== 渲染畫面 =====
+    function render(orders){
+      const keys = Object.keys(orders).sort((a,b)=>{
+        // 依時間新到舊
+        const ta = Date.parse(orders[a]?.time||0);
+        const tb = Date.parse(orders[b]?.time||0);
+        return tb - ta;
+      });
+
+      const list = $("list");
+      list.innerHTML = "";
+
+      let shown = 0;
+      keys.forEach(id=>{
+        const o = orders[id];
+        if (!o) return;
+        if (currentFilter !== "all" && (o.status||"new") !== currentFilter) return;
+
+        shown++;
+
+        // 重新試算合計
+        let calc = 0;
+        if (o.items && typeof o.items === "object") {
+          Object.values(o.items).forEach(it=>{
+            const p = Number(it.price)||0;
+            const q = Number(it.quantity)||0;
+            calc += p*q;
+          });
+        }
+        const same = (Number(o.total)||0) === calc;
+
+        const el = document.createElement("div");
+        el.className = "order";
+        el.innerHTML = `
+          <div class="order-head">
+            <span>桌號：<b>${o.table||"?"}</b></span>
+            <span class="muted">時間：${o.time||"—"}</span>
+            <span class="pill ${o.status||"new"}">${o.status||"new"}</span>
+            <span class="order-code">${id}</span>
+          </div>
+
+          <div class="items">
+            ${renderItems(o.items)}
+          </div>
+
+          <div class="sum">
+            <span>系統合計：<b>$${fmt.format(calc)}</b></span>
+            <span>DB 合計：<b>$${fmt.format(Number(o.total)||0)}</b></span>
+            ${same ? "" : `<span class="warn">（與 DB 合計不符）</span>`}
+          </div>
+
+          <div class="ops">
+            <label>
+              狀態：
+              <select data-id="${id}" class="status">
+                ${statusFlow.map(s=>`<option value="${s}" ${s===(o.status||"new")?"selected":""}>${s}</option>`).join("")}
+              </select>
+            </label>
+            <button class="next" data-id="${id}">下一步狀態</button>
+            <button class="danger del" data-id="${id}">刪除訂單</button>
+          </div>
+        `;
+        list.appendChild(el);
+      });
+
+      $("empty").style.display = shown ? "none" : "block";
+      $("info").textContent = `共 ${Object.keys(orders).length} 單，顯示 ${shown} 單`;
+      $("info").className = "tag muted";
+
+      bindOps();
+    }
+
+    function renderItems(items){
+      if (!items || typeof items !== "object") {
+        return `<div class="muted" style="padding:6px 0;">（無品項資料）</div>`;
+      }
+      const rows = Object.values(items).map(it=>{
+        const price = Number(it.price)||0;
+        const qty   = Number(it.quantity)||0;
+        const line  = price*qty;
+        return `
+          <div class="item-row">
+            <div>
+              <div class="name">${it.name||it.id||"—"}</div>
+              ${it.note ? `<div class="note">備註：${escapeHtml(it.note)}</div>` : ""}
+            </div>
+            <div class="qty">× ${qty}</div>
+            <div class="line">$${fmt.format(line)}</div>
+          </div>
+        `;
+      });
+      return rows.join("");
+    }
+
+    function escapeHtml(s){
+      return String(s).replace(/[&<>"']/g, m => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      }[m]));
+    }
+
+    // ===== 綁定操作 =====
+    function bindOps(){
+      // 改狀態（選單）
+      document.querySelectorAll("select.status").forEach(sel=>{
+        sel.onchange = async ()=>{
+          const id = sel.dataset.id;
+          const val = sel.value;
+          sel.disabled = true;
+          try{
+            await ordersRef.child(id).child("status").set(val);
+          }catch(e){
+            alert("更新失敗： " + e.message);
+          }finally{
+            sel.disabled = false;
+          }
+        };
+      });
+
+      // 下一步狀態
+      document.querySelectorAll("button.next").forEach(btn=>{
+        btn.onclick = async ()=>{
+          const id = btn.dataset.id;
+          const cur = (allOrders[id]?.status)||"new";
+          const idx = statusFlow.indexOf(cur);
+          const next = statusFlow[(idx+1)%statusFlow.length];
+          btn.disabled = true;
+          try{
+            await ordersRef.child(id).child("status").set(next);
+          }catch(e){
+            alert("更新失敗： " + e.message);
+          }finally{
+            btn.disabled = false;
+          }
+        };
+      });
+
+      // 刪除訂單
+      document.querySelectorAll("button.del").forEach(btn=>{
+        btn.onclick = async ()=>{
+          const id = btn.dataset.id;
+          if (!confirm(`確定要刪除訂單 ${id} 嗎？`)) return;
+          btn.disabled = true;
+          try{
+            await ordersRef.child(id).remove();
+          }catch(e){
+            alert("刪除失敗： " + e.message);
+          }finally{
+            btn.disabled = false;
+          }
+        };
+      });
+    }
   </script>
 </body>
 </html>
+
 
 
