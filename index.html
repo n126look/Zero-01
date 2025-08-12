@@ -115,15 +115,23 @@
     try { firebase.initializeApp(firebaseConfig); db = firebase.database(); }
     catch(e){ console.warn("Firebase 初始化失敗，改用 JSON 備援：", e); }
 
+    // ========= 資料正規化：把 {menu_items:{...}} 攤平成 {...} =========
+    function normalizeMenuData(data) {
+      if (data && typeof data === "object" &&
+          data.menu_items && typeof data.menu_items === "object") {
+        return data.menu_items;
+      }
+      return data || {};
+    }
+
     // ========= 菜單來源控制 =========
-    const MENU_VER = "2025-08-11-01";                 // 每次改價換新版本
+    const MENU_VER = "2025-08-12-01";                 // 換版本避免快取
     const MENU_URL = `menu_items.json?v=${MENU_VER}`; // 避免快取
     const sourceOverride = qs.get("source");          // ?source=json 可強制用 JSON
 
     // ========= 開桌 session 檢查（重要） =========
     async function checkSession() {
-      // JSON 模式或本地測試時可放行（沒有 db）
-      if (!db) return true;
+      if (!db) return true; // JSON 模式放行
 
       try {
         const snap = await db.ref(`tables/${currentTable}/session`).once("value");
@@ -152,7 +160,7 @@
       if (db && sourceOverride !== "json") {
         try {
           const snap = await db.ref("menu_items").once("value");
-          const data = snap.val();
+          const data = normalizeMenuData(snap.val());
           if (data && Object.keys(data).length) {
             state.source = "firebase";
             state.menu = data;
@@ -168,7 +176,8 @@
       try {
         const res = await fetch(MENU_URL, { cache: "no-store" });
         if(!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const raw = await res.json();
+        const data = normalizeMenuData(raw);
         state.source = "json";
         state.menu = data;
         renderMenu(data);
@@ -181,7 +190,7 @@
       }
     }
 
-    // ========= 渲染菜單 =========
+    // ========= 渲染菜單（清單版） =========
     function renderMenu(raw){
       const menu = $("menu");
       menu.innerHTML = "";
@@ -220,7 +229,6 @@
     function clampQty(el){
       const v = parseInt(el.value || "0", 10);
       if (isNaN(v) || v < 0) el.value = 0;
-      // 可視需求設上限：if (v > 99) el.value = 99;
     }
 
     // ========= 暫存（依桌號分開）=========
@@ -295,10 +303,9 @@
 
       const total = calcTotal();
 
-      // 帶入 sessionId，供 Rules 驗證
       const order = {
         table: currentTable,
-        sessionId: ACTIVE_SESSION_ID || null, // JSON 模式時可能為 null
+        sessionId: ACTIVE_SESSION_ID || null,
         time: new Date().toISOString(),
         items,
         total
@@ -337,7 +344,7 @@
 
     // ========= 啟動：先檢查開桌，再載菜單 =========
     (async () => {
-      const ok = await checkSession();   // 先做桌況驗證
+      const ok = await checkSession();
       if (ok) loadMenu();
     })();
   </script>
