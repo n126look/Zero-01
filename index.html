@@ -10,50 +10,50 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
   <style>
-    /* === 圖片格狀菜單 === */
-.menu-toolbar{
-  display:flex; gap:8px; align-items:center; justify-content:space-between; margin:8px 0 10px;
-}
-.menu-toolbar .pager{ display:flex; gap:6px; align-items:center; }
-.menu-grid{
-  display:grid;
-  grid-template-columns: repeat(2, 1fr); /* 手機：2 欄 */
-  gap:12px;
-}
-@media (min-width: 640px){ .menu-grid{ grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 920px){ .menu-grid{ grid-template-columns: repeat(4, 1fr); } }
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",Arial;
+           margin:0; background:#f7f7f7; }
+    header { padding:16px; position:sticky; top:0; background:#f7f7f7; z-index:5; }
+    h1 { margin:0; color:#333; font-size:1.4rem; }
+    main { padding:0 16px 96px; }
+    h2 { color:#333; margin:16px 0 8px; font-size:1.1rem; }
+    .item { background:#fff; border:1px solid #e5e5e5; border-radius:12px;
+            padding:12px; margin:8px 0; box-shadow:0 2px 10px rgba(0,0,0,.04); }
+    .row { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+    .name { font-weight:700; }
+    .price { color:#555; }
+    .qty { width:88px; }
+    .note { flex:1 1 220px; min-width:200px; }
 
-.card2{
-  background:#fff; border:1px solid #e5e5e5; border-radius:12px;
-  overflow:hidden; display:flex; flex-direction:column;
-  box-shadow:0 2px 10px rgba(0,0,0,.04);
-}
-.card2 .pic{
-  aspect-ratio: 4/3;
-  background:#f3f4f6;
-  display:flex; align-items:center; justify-content:center;
-  overflow:hidden;
-}
-.card2 .pic img{ width:100%; height:100%; object-fit:cover; }
-.card2 .body{ padding:10px; display:flex; flex-direction:column; gap:6px; }
-.card2 .name{ font-weight:700; line-height:1.2; min-height:2.4em; }
-.card2 .price{ color:#334155; font-weight:800; }
-.card2 .ops{ display:flex; align-items:center; gap:8px; }
-.card2 .qtybox{
-  display:flex; align-items:center; gap:6px; margin-left:auto;
-}
-.card2 .qtybox button{
-  width:32px; height:32px; border-radius:8px; border:1px solid #d0d7de; background:#fff; cursor:pointer;
-}
-.card2 .qtybox input{
-  width:48px; text-align:center; padding:6px; border:1px solid #d0d7de; border-radius:8px;
-}
-.card2 .note{
-  width:100%; padding:7px 8px; border:1px dashed #cbd5e1; border-radius:10px; font-size:.9rem;
-}
-.btn-lite{ padding:6px 10px; border-radius:10px; border:1px solid #d0d7de; background:#fff; cursor:pointer; }
-.btn-lite[disabled]{ opacity:.6; cursor:not-allowed; }
+    .checkout-bar {
+      position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid #e5e5e5;
+      padding:10px 12px; display:flex; align-items:center; gap:12px; z-index:10;
+    }
+    .checkout-bar .sum { font-weight:900; font-size:1.1rem; }
+    .checkout-bar .muted { color:#666; font-size:.9rem; }
+    button.primary {
+      margin-left:auto; padding:.75rem 1.2rem; font-size:1rem; font-weight:700;
+      background:#0d6efd; color:#fff; border:0; border-radius:10px; cursor:pointer;
+    }
+    button.primary[disabled] { opacity:.6; cursor:not-allowed; }
 
+    .message { padding:10px 16px; min-height:1.25rem; font-weight:700; }
+    .ok { color:#0a7d39; } .err { color:#b3261e; } .info { color:#0b5ed7; }
+
+    .toast {
+      position:fixed; left:50%; bottom:80px; transform:translateX(-50%);
+      background:rgba(0,0,0,.85); color:#fff; padding:10px 14px; border-radius:10px;
+      font-size:.95rem; opacity:0; pointer-events:none; transition:opacity .25s;
+      z-index:100;
+    }
+    .toast.show { opacity:1; }
+
+    .success { display:none; padding:24px; text-align:center; }
+    .success h3 { margin:0 0 8px; }
+    .success .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                     background:#f1f3f5; border:1px dashed #cbd5e1; border-radius:8px;
+                     display:inline-block; padding:6px 10px; }
   </style>
 </head>
 <body>
