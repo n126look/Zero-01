@@ -62,6 +62,40 @@
     .ops button.danger { border-color:#e11d48; color:#e11d48; }
     .ops button:disabled { opacity:.6; cursor:not-allowed; }
     .empty { text-align:center; color:#6c757d; margin-top:40px; }
+
+    /* --- layout fixes --- */
+main{
+  grid-template-columns: 420px 1fr; /* 左 420px、右自動 */
+  gap: 24px;                        /* 加大間距，避免視覺貼合 */
+  align-items: start;
+}
+
+/* 左側面板固定在畫面內，避免被右側蓋住 */
+.table-panel{
+  position: sticky;
+  top: 72px;        /* 視你的 header 高度微調 */
+  z-index: 3;       /* 高於右側訂單 */
+  background: #fff; /* 確保底色不透 */
+}
+
+/* 訂單卡片層級較低、不要外溢 */
+.order{
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+}
+
+/* 小螢幕：改成上下堆疊，避免擠壓重疊 */
+@media (max-width: 1024px){
+  main{
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .table-panel{
+    position: static; /* 手機不黏頂，正常流 */
+  }
+}
+
   </style>
 </head>
 <body>
