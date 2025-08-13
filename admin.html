@@ -3,218 +3,140 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>點餐系統</title>
+  <title>後台管理｜即時訂單 + 開桌面板</title>
 
-  <!-- 禁止快取，更新樣式時比較不會卡住 -->
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-
-  <!-- Firebase（compat 版） -->
+  <!-- Firebase compat 版 -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
   <style>
-    :root{
-      color-scheme: light;
-      --bg:#f3efe7;            /* 米色底 */
-      --card:#fff;             /* 卡片白 */
-      --ink:#1f2937;           /* 文字 */
-      --muted:#6b7280;
-      --brand:#0f1b2d;         /* 深藍標頭 */
-      --accent:#ff7a00;        /* 底部橘色條 */
-      --primary:#0d6efd;       /* 主要按鈕 */
-      --radius:16px;
-      --shadow:0 10px 24px rgba(0,0,0,.08);
-    }
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",Arial; margin:0; background:#f6f7f9; }
+    header { position:sticky; top:0; z-index:5; background:#fff; border-bottom:1px solid #e9ecef; padding:12px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    h1 { margin:0; font-size:1.1rem; }
+    select, button, input { font:inherit; }
+    main { padding:16px; display:grid; grid-template-columns: 360px 1fr; gap:16px; align-items:start; }
 
-    *{ box-sizing:border-box; }
-    html,body{ height:100%; }
-    body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system,"Segoe UI",Roboto,"Noto Sans TC",Arial;
-      color:var(--ink);
-      background:
-        radial-gradient(40rem 40rem at -10% -10%, #ffffff90, transparent 60%),
-        radial-gradient(30rem 30rem at 120% -20%, #fce9d480, transparent 55%),
-        var(--bg);
+    /* 桌位按鈕面板 */
+    .table-panel { background:#fff; border:1px solid #e9ecef; border-radius:12px; padding:12px; box-shadow:0 2px 10px rgba(0,0,0,.03); }
+    .table-toolbar { display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
+    .table-grid { display:grid; grid-template-columns: repeat(5, minmax(90px,1fr)); gap:10px; }
+    .table-btn {
+      cursor:pointer; user-select:none; border-radius:12px; padding:10px 8px;
+      border:1px solid #e5e7eb; background:#fff; text-align:center;
+      display:flex; flex-direction:column; gap:4px;
     }
+    .table-btn .num { font-weight:800; font-size:18px; letter-spacing:1px; }
+    .table-btn .meta { font-size:12px; color:#6b7280; min-height:1em; }
+    .table-btn.open  { background:#ecfdf5; border-color:#34d399; color:#065f46; }
+    .table-btn.close { background:#fef2f2; border-color:#f87171; color:#7f1d1d; }
 
-    /* 外框 Panel */
-    .panel{
-      max-width: 980px;
-      margin: 22px auto 110px;
-      border-radius: calc(var(--radius) + 4px);
-      box-shadow: var(--shadow);
-      background: var(--card);
-      overflow:hidden;
-    }
-    .panel-head{
-      background: var(--brand);
-      color:#fff;
-      padding: 20px 22px;
-      display:flex; align-items:center; gap:14px;
-    }
-    .panel-head h1{
-      margin:0; font-size: clamp(22px, 4.8vw, 34px); letter-spacing:.06em;
-      display:flex; align-items:center; gap:10px;
-      font-weight:900;
-    }
-    .panel-head small{ display:block; margin-top:6px; font-size:15px; opacity:.9; }
+    /* 訂單清單 */
+    .toolbar { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .tag { padding:2px 8px; border-radius:999px; font-size:.85rem; border:1px solid #e1e5ea; background:#fff; }
+    .muted { color:#6c757d; }
+    .ok { color:#0a7d39; }
+    .err { color:#b3261e; }
 
-    .panel-body{ padding: 18px; background: #fbfaf7; }
+    .order { background:#fff; border:1px solid #e9ecef; border-radius:12px; padding:12px; margin:12px 0; box-shadow:0 2px 10px rgba(0,0,0,.03); }
+    .order-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .order-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding:2px 6px; border:1px solid #e9ecef; border-radius:6px; background:#f8f9fa; }
+    .pill { padding:4px 8px; border-radius:999px; font-weight:700; border:1px solid #e3e7ee; }
+    .pill.new { background:#e7f1ff; color:#0b5ed7; }
+    .pill.preparing { background:#fff4e5; color:#b35c00; }
+    .pill.served { background:#e9f7ef; color:#0a7d39; }
+    .pill.paid { background:#eef0f2; color:#334155; }
 
-    /* 類別標題 */
-    h2.cat{
-      margin: 14px 6px 10px;
-      font-size: clamp(18px, 4.2vw, 22px);
-    }
+    .items { margin-top:8px; border-top:1px dashed #e5e7eb; padding-top:8px; }
+    .item-row { display:grid; grid-template-columns: 1fr auto auto; gap:8px; padding:6px 0; border-bottom:1px dotted #f1f3f5; }
+    .item-row:last-child { border-bottom:0; }
+    .name { font-weight:600; }
+    .note { color:#6b7280; font-size:.9rem; }
+    .price, .qty, .line { text-align:right; white-space:nowrap; }
+    .sum { margin-top:8px; display:flex; justify-content:flex-end; gap:12px; align-items:center; }
+    .sum .warn { color:#b3261e; font-weight:700; }
+    .ops { margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .ops select { padding:6px 8px; border-radius:8px; border:1px solid #d0d7de; background:#fff; }
+    .ops button { padding:8px 12px; border-radius:10px; border:1px solid #d0d7de; background:#fff; cursor:pointer; }
+    .ops button.danger { border-color:#e11d48; color:#e11d48; }
+    .ops button:disabled { opacity:.6; cursor:not-allowed; }
+    .empty { text-align:center; color:#6c757d; margin-top:40px; }
+    /* --- layout fixes --- */
+main{
+  grid-template-columns: 420px 1fr; /* 左 420px、右自動 */
+  gap: 24px;                        /* 加大間距，避免視覺貼合 */
+  align-items: start;
+}
 
-    /* 菜單列：左圖右文 */
-    .menu-row{
-      background:var(--card);
-      border:1px solid #ece7dd;
-      border-radius: var(--radius);
-      box-shadow: 0 4px 14px rgba(0,0,0,.05);
-      padding:14px;
-      display:grid;
-      grid-template-columns: 96px 1fr;
-      gap:14px;
-      align-items:center;
-      margin:12px 6px;
-    }
-    .thumb{
-      width:96px; height:96px; border-radius: 12px; overflow:hidden;
-      background:#f2f3f5; display:flex; align-items:center; justify-content:center;
-      box-shadow: inset 0 0 0 1px #e9edf2;
-    }
-    .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
-    .meta{ display:flex; flex-direction:column; gap:10px; }
-    .title{
-      display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
-    }
-    .name{ font-size: clamp(18px, 4.4vw, 22px); font-weight:900; }
-    .price{ font-size: clamp(16px, 4vw, 20px); color:var(--ink); }
+/* 左側面板固定在畫面內，避免被右側蓋住 */
+.table-panel{
+  position: sticky;
+  top: 72px;        /* 視你的 header 高度微調 */
+  z-index: 3;       /* 高於右側訂單 */
+  background: #fff; /* 確保底色不透 */
+}
 
-    /* 加減數量條 */
-    .qtyline{
-      display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-    }
-    .qtybox{
-      margin-left:auto; display:flex; align-items:center; gap:10px;
-    }
-    .btn{
-      width:44px; height:44px; border-radius:12px;
-      border:1px solid #d0d7de; background:#fff;
-      display:flex; align-items:center; justify-content:center;
-      font-size:24px; line-height:1; cursor:pointer;
-      box-shadow:0 2px 6px rgba(0,0,0,.06);
-    }
-    .btn:active{ transform: scale(.98); }
-    .qtydisp{ min-width:28px; text-align:center; font-weight:900; font-size:22px; }
+/* 訂單卡片層級較低、不要外溢 */
+.order{
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+}
 
-    .note{
-      width:100%; height:42px;
-      padding:10px 12px; border-radius:10px; border:1px solid #e3e3e3;
-      background:#fff; color:var(--ink); font-size:16px;
-    }
+/* 小螢幕：改成上下堆疊，避免擠壓重疊 */
+@media (max-width: 1024px){
+  main{
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .table-panel{
+    position: static; /* 手機不黏頂，正常流 */
+  }
+}
 
-    /* 底部小計條＋送出 */
-    .checkout{
-      position:fixed; left:0; right:0; bottom:0;
-      background: linear-gradient(#fff, #f7f3ea);
-      border-top:1px solid #e9e1d3;
-      padding:12px; display:flex; align-items:center; gap:12px;
-      z-index:10;
-    }
-    .sum{ font-size: clamp(18px,4.2vw,22px); font-weight:900; }
-    .muted{ color:var(--muted); font-size:15px; margin-left:6px; }
-    .primary{
-      margin-left:auto; padding:.9rem 1.25rem; font-size:18px; font-weight:900;
-      background:#2b5bea; color:#fff; border:0; border-radius:14px; cursor:pointer;
-      box-shadow: 0 8px 24px rgba(43,91,234,.35);
-    }
-    .primary[disabled]{ opacity:.55; cursor:not-allowed; box-shadow:none; }
-
-    /* 底部橘色裝飾條（純視覺） */
-    .accent-bar{
-      height:16px; border-radius:12px; background:var(--accent); opacity:.85;
-      margin:18px 6px 6px;
-    }
-
-    /* 成功畫面 */
-    .success{ display:none; padding:30px; text-align:center; }
-    .success h3{ margin:0 0 8px; font-size:22px; }
-    .code{
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      background:#f6f4ed; border:1px dashed #d9ccb6; border-radius:8px;
-      display:inline-block; padding:6px 10px;
-    }
-
-    /* Toast */
-    .toast{
-      position:fixed; left:50%; bottom:84px; transform:translateX(-50%);
-      background:rgba(0,0,0,.85); color:#fff; padding:10px 14px; border-radius:10px;
-      font-size:.95rem; opacity:0; pointer-events:none; transition:opacity .25s;
-      z-index:100;
-    }
-    .toast.show{ opacity:1; }
-
-    /* 手機窄螢幕調整 */
-    @media (max-width:640px){
-      .menu-row{ grid-template-columns: 84px 1fr; gap:12px; }
-      .thumb{ width:84px; height:84px; }
-      .btn{ width:40px; height:40px; font-size:22px; }
-    }
   </style>
 </head>
 <body>
-  <div class="panel">
-    <div class="panel-head">
-      <h1>🗒️ 手機點餐</h1>
+  <header>
+    <h1>🍽️ 後台管理</h1>
+    <div class="toolbar">
+      <label>狀態篩選：
+        <select id="filter">
+          <option value="all">全部</option>
+          <option value="new">new</option>
+          <option value="preparing">preparing</option>
+          <option value="served">served</option>
+          <option value="paid">paid</option>
+        </select>
+      </label>
+      <span id="info" class="tag muted"></span>
     </div>
+  </header>
 
-    <div class="panel-body">
-      <div id="tableLine" style="margin:4px 6px 14px; color:#fff0; height:0;"></div>
-      <div id="menu"></div>
+  <main>
+    <!-- 左側：桌位按鈕面板（10 桌） -->
+    <section class="table-panel">
+      <div class="table-toolbar">
+        <strong>桌位面板</strong>
+        <label>開桌時長（分鐘）
+          <input id="openMinutes" type="number" min="15" step="15" value="180" style="width:80px;">
+        </label>
+        <span class="muted">點按按鈕即可開/關；綠=開桌，紅=關桌。</span>
+        <span id="sessMsg" class="muted"></span>
+      </div>
+      <div id="tableGrid" class="table-grid"></div>
+    </section>
 
-      <div id="msg" style="padding:10px 6px; font-weight:700;"></div>
-
-      <div class="accent-bar" aria-hidden="true"></div>
-
-      <section id="success" class="success">
-        <h3>✅ 訂單已送出</h3>
-        <p>您的訂單編號：</p>
-        <p class="code" id="orderId">—</p>
-        <p style="margin-top:8px;">請保持頁面或出示此畫面給服務人員。</p>
-        <button class="primary" onclick="location.href = location.pathname + location.search">回到點餐</button>
-      </section>
-    </div>
-  </div>
-
-  <div class="checkout">
-    <div class="sum" id="total">合計金額：$0</div>
-    <div class="muted" id="tableInfo"></div>
-    <button class="primary" id="submitBtn" disabled>送出訂單</button>
-  </div>
-
-  <div class="toast" id="toast"></div>
+    <!-- 右側：即時訂單 -->
+    <section>
+      <div id="list"></div>
+      <div id="empty" class="empty" style="display:none;">目前沒有訂單</div>
+    </section>
+  </main>
 
   <script>
-    /* ========= 小工具 ========= */
-    const $ = (id) => document.getElementById(id);
-    const fmt = new Intl.NumberFormat('zh-TW');
-    function showToast(text, ms=1600){ const t=$("toast"); t.textContent=text; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"), ms); }
-
-    /* ========= 狀態 ========= */
-    const qs = new URLSearchParams(location.search);
-    const currentTable = qs.get("table") || "01";
-    $("tableInfo").textContent = `桌號： ${currentTable}`;
-    const STORAGE_KEY = `cart_${currentTable}`;
-    const state = { source:null, menu:{}, submitting:false };
-    let ACTIVE_SESSION_ID = null;
-
-    /* ========= Firebase ========= */
+    // ===== Firebase 設定 =====
     const firebaseConfig = {
       apiKey: "AIzaSyDaC14zf1ZxOsd-twyjzSgTIcNBwty1Is",
       authDomain: "zero-01-17457.firebaseapp.com",
@@ -224,205 +146,269 @@
       appId: "1:534119998616:web:ec3b6c2d48318f9c51ced",
       databaseURL: "https://zero-01-17457-default-rtdb.asia-southeast1.firebasedatabase.app"
     };
-    let db=null; try{ firebase.initializeApp(firebaseConfig); db=firebase.database(); }catch(e){ console.warn("Firebase 初始化失敗，改用 JSON 模式：", e); }
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const ordersRef = db.ref("orders");
+    const tablesRef = db.ref("tables");
 
-    function normalizeMenuData(data){
-      if (data && typeof data==="object" && data.menu_items && typeof data.menu_items==="object") return data.menu_items;
-      return data || {};
+    // ===== 共用 =====
+    const $ = id => document.getElementById(id);
+    const fmt = new Intl.NumberFormat("zh-TW");
+    const statusFlow = ["new","preparing","served","paid"];
+
+    // ===== 桌位按鈕面板（10 桌） =====
+    const NUM_TABLES = 10;                         // ← 想要幾桌改這裡
+    const DEFAULT_MINUTES = 180;
+    const tableGrid = $("tableGrid");
+    const openMinutesEl = $("openMinutes");
+    let tablesCache = {};
+    let tickTimer = null;
+
+    function genSessionId(){
+      return Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+    }
+    function fmtLeft(ms){
+      const s = Math.max(0, Math.floor(ms/1000));
+      const m = Math.floor(s/60), sec = s%60;
+      const h = Math.floor(m/60), min = m%60;
+      if (h>0) return `${h}時${min}分`;
+      if (m>0) return `${m}分${sec}秒`;
+      return `${sec}秒`;
     }
 
-    const MENU_VER = "ui-2025-08-13-02";
-    const MENU_URL = `menu_items.json?v=${MENU_VER}`;
-    const sourceOverride = qs.get("source");
+    function renderButtons(){
+      const now = Date.now();
+      tableGrid.innerHTML = '';
+      for (let i=1; i<=NUM_TABLES; i++){
+        const t = String(i).padStart(2, '0');
+        const sess = tablesCache?.[t]?.session;
+        const alive = !!(sess && Number(sess.expiresAt) > now);
 
-    /* ========= 開桌檢查 ========= */
-    async function checkSession(){
-      if (!db) return true;
-      try{
-        const snap = await db.ref(`tables/${currentTable}/session`).once("value");
-        const sess = snap.val();
-        if (!sess || !sess.id || !sess.expiresAt || Number(sess.expiresAt) <= Date.now()){
-          setMsg("此桌尚未開桌或已結帳，請洽服務人員。", true);
-          $("submitBtn").disabled = true;
-          return false;
+        const btn = document.createElement('button');
+        btn.className = 'table-btn ' + (alive ? 'open' : 'close');
+        btn.dataset.table = t;
+        btn.innerHTML = `
+          <div class="num">桌 ${t}</div>
+          <div class="meta" id="left-${t}">${alive ? fmtLeft(sess.expiresAt - now) : '未開桌'}</div>
+        `;
+        btn.onclick = () => toggleTable(t);
+        tableGrid.appendChild(btn);
+      }
+      if (tickTimer) clearInterval(tickTimer);
+      tickTimer = setInterval(updateCountdowns, 1000);
+    }
+
+    function updateCountdowns(){
+      const now = Date.now();
+      for (let i=1; i<=NUM_TABLES; i++){
+        const t = String(i).padStart(2,'0');
+        const lab = document.getElementById(`left-${t}`);
+        if (!lab) continue;
+        const sess = tablesCache?.[t]?.session;
+        const alive = !!(sess && Number(sess.expiresAt) > now);
+        const btn = lab.closest('.table-btn');
+        if (!alive){
+          lab.textContent = '未開桌';
+          btn?.classList.remove('open'); btn?.classList.add('close');
+        }else{
+          lab.textContent = fmtLeft(Number(sess.expiresAt) - now);
+          btn?.classList.remove('close'); btn?.classList.add('open');
         }
-        ACTIVE_SESSION_ID = String(sess.id);
-        return true;
+      }
+    }
+
+    async function toggleTable(tableNo){
+      const minutes = Number(openMinutesEl?.value || DEFAULT_MINUTES) || DEFAULT_MINUTES;
+      const ref = db.ref(`tables/${tableNo}/session`);
+      const snap = await ref.get();
+      const alive = snap.exists() && Number(snap.val().expiresAt) > Date.now();
+
+      try{
+        if (alive){
+          // 關桌
+          await ref.remove();
+          $("sessMsg").textContent = `桌 ${tableNo} 已關桌`;
+          $("sessMsg").className = "ok";
+        }else{
+          // 開桌
+          const id = genSessionId();
+          const now = Date.now();
+          const expiresAt = now + minutes*60*1000;
+          await ref.set({ id, openedAt: now, expiresAt });
+          $("sessMsg").textContent = `桌 ${tableNo} 已開桌（${minutes} 分），到期 ${new Date(expiresAt).toLocaleString()}`;
+          $("sessMsg").className = "ok";
+        }
       }catch(e){
-        setMsg("讀取桌況失敗，請稍後重試或洽服務人員。", true);
-        $("submitBtn").disabled = true;
-        return false;
+        $("sessMsg").textContent = `操作失敗：${e.message}`;
+        $("sessMsg").className = "err";
       }
     }
-    function setMsg(text, err=false){ const el=$("msg"); el.textContent=text; el.style.color= err ? "#b3261e" : "#0b5ed7"; }
 
-    /* ========= 讀菜單 ========= */
-    async function loadMenu(){
-      setMsg("正在載入菜單…");
-      if (db && sourceOverride!=="json"){
-        try{
-          const snap = await db.ref("menu_items").once("value");
-          const data = normalizeMenuData(snap.val());
-          if (data && Object.keys(data).length){
-            state.source="firebase"; state.menu=data; renderMenu(data); restoreCart(); updateTotal(); setMsg("");
-            return;
-          }
-        }catch(e){ console.warn("讀取 Firebase 失敗：", e); }
-      }
-      try{
-        const res = await fetch(MENU_URL, { cache:"no-store" });
-        if(!res.ok) throw new Error(`HTTP ${res.status}`);
-        const raw = await res.json();
-        const data = normalizeMenuData(raw);
-        state.source="json"; state.menu=data; renderMenu(data); restoreCart(); updateTotal();
-        setMsg("（目前為離線/JSON 模式）");
-      }catch(e){ setMsg(`⚠️ 無法取得菜單：${e.message}`, true); }
-    }
-
-    /* ========= 數量工具 ========= */
-    const getQty = id => parseInt( (document.getElementById(`qty-${id}`)?.value)||"0",10 ) || 0;
-    function setQty(id, v){
-      const val = Math.max(0, Math.min(99, parseInt(v,10)||0));
-      const hidden = document.getElementById(`qty-${id}`);
-      const disp   = document.getElementById(`qtdis-${id}`);
-      if (hidden) hidden.value = val;
-      if (disp)   disp.textContent = val;
-    }
-
-    /* ========= 渲染 ========= */
-    function renderMenu(raw){
-      const menu = $("menu");
-      menu.innerHTML = "";
-      const grouped={};
-      Object.entries(raw).forEach(([id,item]) => (grouped[item.category||"其他"] ??= []).push({...item,id}));
-
-      Object.entries(grouped).forEach(([cat, items])=>{
-        const h = document.createElement("h2"); h.className="cat"; h.textContent=cat; menu.appendChild(h);
-
-        items.forEach(item=>{
-          const row = document.createElement("div");
-          row.className="menu-row";
-          row.innerHTML = `
-            <div class="thumb">
-              ${item.img ? `<img src="${item.img}" alt="${item.name||''}" loading="lazy" onerror="this.remove()">` : ""}
-            </div>
-            <div class="meta">
-              <div class="title">
-                <div class="name">${item.name||""}</div>
-                <div class="price">$ ${fmt.format(Number(item.price)||0)}</div>
-              </div>
-
-              <div class="qtyline">
-                ${item.enable_note ? `<input class="note" id="note-${item.id}" placeholder="備註（可留空）">` : `<span class="muted" style="font-size:14px;"></span>`}
-
-                <div class="qtybox" data-id="${item.id}">
-                  <button class="btn minus" type="button" data-id="${item.id}" aria-label="減">−</button>
-                  <span class="qtydisp" id="qtdis-${item.id}">0</span>
-                  <button class="btn plus"  type="button" data-id="${item.id}" aria-label="加">＋</button>
-                </div>
-              </div>
-            </div>
-
-            <input type="hidden" id="qty-${item.id}" value="0">
-          `;
-          menu.appendChild(row);
-        });
-      });
-
-      // 綁定 + / -
-      menu.querySelectorAll(".qtybox .plus").forEach(btn=>{
-        btn.onclick = ()=>{ const id=btn.dataset.id; setQty(id, getQty(id)+1); updateTotal(); saveCart(); };
-      });
-      menu.querySelectorAll(".qtybox .minus").forEach(btn=>{
-        btn.onclick = ()=>{ const id=btn.dataset.id; setQty(id, Math.max(0, getQty(id)-1)); updateTotal(); saveCart(); };
-      });
-      // 備註儲存
-      menu.querySelectorAll("input.note").forEach(n=> n.addEventListener("change", saveCart));
-    }
-
-    /* ========= 暫存 ========= */
-    function saveCart(){
-      const data={};
-      Object.keys(state.menu).forEach(id=>{
-        const qty=getQty(id); const note=$(`note-${id}`)?.value||"";
-        if (qty>0 || note) data[id]={qty, note};
-      });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    }
-    function restoreCart(){
-      try{
-        const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return;
-        const cart=JSON.parse(raw);
-        Object.entries(cart).forEach(([id,{qty,note}])=>{
-          setQty(id, qty); const nEl=$(`note-${id}`); if(nEl && note) nEl.value=note;
-        });
-      }catch{}
-    }
-
-    /* ========= 計算 ========= */
-    function calcTotal(){
-      let total=0;
-      Object.keys(state.menu).forEach(id=>{
-        const q=getQty(id); if(q>0) total += (Number(state.menu[id].price)||0) * q;
-      });
-      return total;
-    }
-    function updateTotal(){
-      const total=calcTotal(); let count=0;
-      Object.keys(state.menu).forEach(id=> count += getQty(id));
-      $("total").textContent = `合計金額：$${fmt.format(total)}${count?`（${count} 項）`:""}`;
-      $("submitBtn").disabled = (count===0) || state.submitting;
-    }
-
-    /* ========= 送出 ========= */
-    $("submitBtn").addEventListener("click", async ()=>{
-      if (state.submitting) return;
-      state.submitting=true; updateTotal();
-
-      const items=[];
-      Object.keys(state.menu).forEach(id=>{
-        const q=getQty(id);
-        if(q>0){
-          const note=$(`note-${id}`)?.value?.trim()||"";
-          items.push({ id, name:state.menu[id].name, price:Number(state.menu[id].price)||0, quantity:q, note });
-        }
-      });
-      if(items.length===0){ showToast("請先選擇餐點"); state.submitting=false; updateTotal(); return; }
-
-      const order = {
-        table: currentTable,
-        sessionId: ACTIVE_SESSION_ID || null,
-        time: new Date().toISOString(),
-        items,
-        total: calcTotal()
-      };
-
-      const btn=$("submitBtn"); const old=btn.textContent; btn.textContent="送出中…"; btn.disabled=true;
-
-      if(state.source==="firebase" && db){
-        try{
-          const ref = await db.ref("orders").push(order);
-          localStorage.removeItem(STORAGE_KEY);
-          setMsg(""); $("success").style.display="block";
-          $("orderId").textContent = ref.key || "(未知編號)";
-          document.querySelector(".panel-body").scrollIntoView({behavior:"smooth"});
-          showToast("訂單已送出");
-        }catch(e){
-          setMsg(`⚠️ 訂單送出失敗：${e.message}`, true);
-          showToast("送出失敗，請重試"); state.submitting=false; btn.textContent=old; updateTotal();
-        }
-      }else{
-        console.log("（JSON 模式）僅前端記錄：", order);
-        setMsg("✅ 已記錄您的選擇（目前為離線/JSON 模式）");
-        showToast("已記錄您的選擇"); state.submitting=false; btn.textContent=old; updateTotal();
-      }
+    // 即時監聽 /tables
+    tablesRef.on('value', snap => {
+      tablesCache = snap.val() || {};
+      renderButtons();
     });
 
-    /* ========= 啟動 ========= */
-    (async()=>{
-      const ok = await checkSession();
-      if(ok) loadMenu();
-    })();
+    // ===== 訂單監聽與渲染（沿用你原本的） =====
+    let allOrders = {};
+    let currentFilter = "all";
+    $("filter").addEventListener("change", ()=>{
+      currentFilter = $("filter").value;
+      renderOrders(allOrders);
+    });
+
+    ordersRef.on("value", snap=>{
+      allOrders = snap.val() || {};
+      renderOrders(allOrders);
+    }, err=>{
+      $("info").textContent = "讀取失敗：" + err.message;
+      $("info").className = "tag err";
+    });
+
+    function renderOrders(orders){
+      const keys = Object.keys(orders).sort((a,b)=>{
+        const ta = Date.parse(orders[a]?.time||0);
+        const tb = Date.parse(orders[b]?.time||0);
+        return tb - ta;
+      });
+
+      const list = $("list");
+      list.innerHTML = "";
+
+      let shown = 0;
+      keys.forEach(id=>{
+        const o = orders[id];
+        if (!o) return;
+        if (currentFilter !== "all" && (o.status||"new") !== currentFilter) return;
+
+        shown++;
+
+        let calc = 0;
+        if (o.items && typeof o.items === "object") {
+          Object.values(o.items).forEach(it=>{
+            const p = Number(it.price)||0;
+            const q = Number(it.quantity)||0;
+            calc += p*q;
+          });
+        }
+        const same = (Number(o.total)||0) === calc;
+
+        const el = document.createElement("div");
+        el.className = "order";
+        el.innerHTML = `
+          <div class="order-head">
+            <span>桌號：<b>${o.table||"?"}</b></span>
+            <span class="muted">時間：${o.time||"—"}</span>
+            <span class="pill ${o.status||"new"}">${o.status||"new"}</span>
+            <span class="order-code">${id}</span>
+          </div>
+
+          <div class="items">
+            ${renderItems(o.items)}
+          </div>
+
+          <div class="sum">
+            <span>系統合計：<b>$${fmt.format(calc)}</b></span>
+            <span>DB 合計：<b>$${fmt.format(Number(o.total)||0)}</b></span>
+            ${same ? "" : `<span class="warn">（與 DB 合計不符）</span>`}
+          </div>
+
+          <div class="ops">
+            <label>
+              狀態：
+              <select data-id="${id}" class="status">
+                ${statusFlow.map(s=>`<option value="${s}" ${s===(o.status||"new")?"selected":""}>${s}</option>`).join("")}
+              </select>
+            </label>
+            <button class="next" data-id="${id}">下一步狀態</button>
+            <button class="danger del" data-id="${id}">刪除訂單</button>
+          </div>
+        `;
+        list.appendChild(el);
+      });
+
+      $("empty").style.display = shown ? "none" : "block";
+      $("info").textContent = `共 ${Object.keys(orders).length} 單，顯示 ${shown} 單`;
+      $("info").className = "tag muted";
+
+      bindOps();
+    }
+
+    function renderItems(items){
+      if (!items || typeof items !== "object") {
+        return `<div class="muted" style="padding:6px 0;">（無品項資料）</div>`;
+      }
+      const rows = Object.values(items).map(it=>{
+        const price = Number(it.price)||0;
+        const qty   = Number(it.quantity)||0;
+        const line  = price*qty;
+        return `
+          <div class="item-row">
+            <div>
+              <div class="name">${it.name||it.id||"—"}</div>
+              ${it.note ? `<div class="note">備註：${escapeHtml(it.note)}</div>` : ""}
+            </div>
+            <div class="qty">× ${qty}</div>
+            <div class="line">$${fmt.format(line)}</div>
+          </div>
+        `;
+      });
+      return rows.join("");
+    }
+
+    function escapeHtml(s){
+      return String(s).replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+    }
+
+    function bindOps(){
+      document.querySelectorAll("select.status").forEach(sel=>{
+        sel.onchange = async ()=>{
+          const id = sel.dataset.id;
+          const val = sel.value;
+          sel.disabled = true;
+          try{
+            await ordersRef.child(id).child("status").set(val);
+          }catch(e){
+            alert("更新失敗： " + e.message);
+          }finally{
+            sel.disabled = false;
+          }
+        };
+      });
+
+      document.querySelectorAll("button.next").forEach(btn=>{
+        btn.onclick = async ()=>{
+          const id = btn.dataset.id;
+          const cur = (allOrders[id]?.status)||"new";
+          const idx = statusFlow.indexOf(cur);
+          const next = statusFlow[(idx+1)%statusFlow.length];
+          btn.disabled = true;
+          try{
+            await ordersRef.child(id).child("status").set(next);
+          }catch(e){
+            alert("更新失敗： " + e.message);
+          }finally{
+            btn.disabled = false;
+          }
+        };
+      });
+
+      document.querySelectorAll("button.del").forEach(btn=>{
+        btn.onclick = async ()=>{
+          const id = btn.dataset.id;
+          if (!confirm(`確定要刪除訂單 ${id} 嗎？`)) return;
+          btn.disabled = true;
+          try{
+            await ordersRef.child(id).remove();
+          }catch(e){
+            alert("刪除失敗： " + e.message);
+          }finally{
+            btn.disabled = false;
+          }
+        };
+      });
+    }
   </script>
 </body>
 </html>
