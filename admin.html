@@ -13,20 +13,49 @@
     :root { color-scheme: light; }
     * { box-sizing: border-box; }
     body { font-family: system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",Arial; margin:0; background:#f6f7f9; }
-    header { position:sticky; top:0; z-index:5; background:#fff; border-bottom:1px solid #e9ecef; padding:12px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    header {
+      position:sticky; top:0; z-index:5;
+      background:#fff; border-bottom:1px solid #e9ecef;
+      padding:12px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+    }
     h1 { margin:0; font-size:1.1rem; }
     select, button, input { font:inherit; }
-    main { padding:16px; display:grid; grid-template-columns: 360px 1fr; gap:16px; align-items:start; }
+    main {
+      padding:16px;
+      display:grid; grid-template-columns: 420px 1fr;  /* 左 420px，右自動 */
+      gap:24px; align-items:start;
+    }
 
     /* 桌位按鈕面板 */
-    .table-panel { background:#fff; border:1px solid #e9ecef; border-radius:12px; padding:12px; box-shadow:0 2px 10px rgba(0,0,0,.03); }
+    .table-panel {
+      background:#fff; border:1px solid #e9ecef; border-radius:12px; padding:12px;
+      box-shadow:0 2px 10px rgba(0,0,0,.03);
+
+      position:sticky; top:72px;  /* 與 header 高度對齊 */
+      z-index:3; background:#fff;
+    }
     .table-toolbar { display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
-    .table-grid { display:grid; grid-template-columns: repeat(5, minmax(90px,1fr)); gap:10px; }
+    .table-toolbar strong { font-weight:800; }
+    .table-grid {
+      display:grid;
+      grid-template-columns: repeat(4, minmax(90px, 1fr));  /* ✅ 固定四桌一排 */
+      gap:10px;
+    }
+    /* 響應式：寬度縮小時自動改欄數 */
+    @media (max-width: 1200px){
+      .table-grid { grid-template-columns: repeat(3, minmax(90px,1fr)); }
+    }
+    @media (max-width: 768px){
+      .table-grid { grid-template-columns: repeat(2, minmax(90px,1fr)); }
+    }
+
     .table-btn {
       cursor:pointer; user-select:none; border-radius:12px; padding:10px 8px;
       border:1px solid #e5e7eb; background:#fff; text-align:center;
       display:flex; flex-direction:column; gap:4px;
+      transition:transform .05s ease;
     }
+    .table-btn:active { transform:scale(0.98); }
     .table-btn .num { font-weight:800; font-size:18px; letter-spacing:1px; }
     .table-btn .meta { font-size:12px; color:#6b7280; min-height:1em; }
     .table-btn.open  { background:#ecfdf5; border-color:#34d399; color:#065f46; }
@@ -39,7 +68,11 @@
     .ok { color:#0a7d39; }
     .err { color:#b3261e; }
 
-    .order { background:#fff; border:1px solid #e9ecef; border-radius:12px; padding:12px; margin:12px 0; box-shadow:0 2px 10px rgba(0,0,0,.03); }
+    .order {
+      background:#fff; border:1px solid #e9ecef; border-radius:12px; padding:12px; margin:12px 0;
+      box-shadow:0 2px 10px rgba(0,0,0,.03);
+      position:relative; z-index:1; overflow:hidden;
+    }
     .order-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
     .order-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding:2px 6px; border:1px solid #e9ecef; border-radius:6px; background:#f8f9fa; }
     .pill { padding:4px 8px; border-radius:999px; font-weight:700; border:1px solid #e3e7ee; }
@@ -53,7 +86,7 @@
     .item-row:last-child { border-bottom:0; }
     .name { font-weight:600; }
     .note { color:#6b7280; font-size:.9rem; }
-    .price, .qty, .line { text-align:right; white-space:nowrap; }
+    .qty, .line { text-align:right; white-space:nowrap; }
     .sum { margin-top:8px; display:flex; justify-content:flex-end; gap:12px; align-items:center; }
     .sum .warn { color:#b3261e; font-weight:700; }
     .ops { margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
@@ -62,38 +95,12 @@
     .ops button.danger { border-color:#e11d48; color:#e11d48; }
     .ops button:disabled { opacity:.6; cursor:not-allowed; }
     .empty { text-align:center; color:#6c757d; margin-top:40px; }
-    /* --- layout fixes --- */
-main{
-  grid-template-columns: 420px 1fr; /* 左 420px、右自動 */
-  gap: 24px;                        /* 加大間距，避免視覺貼合 */
-  align-items: start;
-}
 
-/* 左側面板固定在畫面內，避免被右側蓋住 */
-.table-panel{
-  position: sticky;
-  top: 72px;        /* 視你的 header 高度微調 */
-  z-index: 3;       /* 高於右側訂單 */
-  background: #fff; /* 確保底色不透 */
-}
-
-/* 訂單卡片層級較低、不要外溢 */
-.order{
-  position: relative;
-  z-index: 1;
-  overflow: hidden;
-}
-
-/* 小螢幕：改成上下堆疊，避免擠壓重疊 */
-@media (max-width: 1024px){
-  main{
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-  .table-panel{
-    position: static; /* 手機不黏頂，正常流 */
-  }
-
+    /* 手機：上下堆疊，面板不 sticky */
+    @media (max-width: 1024px){
+      main { grid-template-columns: 1fr; gap:16px; }
+      .table-panel { position:static; }
+    }
   </style>
 </head>
 <body>
@@ -114,12 +121,12 @@ main{
   </header>
 
   <main>
-    <!-- 左側：桌位按鈕面板（10 桌） -->
+    <!-- 左側：桌位按鈕面板 -->
     <section class="table-panel">
       <div class="table-toolbar">
         <strong>桌位面板</strong>
         <label>開桌時長（分鐘）
-          <input id="openMinutes" type="number" min="15" step="15" value="180" style="width:80px;">
+          <input id="openMinutes" type="number" min="15" step="15" value="180" style="width:84px;">
         </label>
         <span class="muted">點按按鈕即可開/關；綠=開桌，紅=關桌。</span>
         <span id="sessMsg" class="muted"></span>
@@ -155,8 +162,8 @@ main{
     const fmt = new Intl.NumberFormat("zh-TW");
     const statusFlow = ["new","preparing","served","paid"];
 
-    // ===== 桌位按鈕面板（10 桌） =====
-    const NUM_TABLES = 10;                         // ← 想要幾桌改這裡
+    // ===== 桌位按鈕面板 =====
+    const NUM_TABLES = 10;
     const DEFAULT_MINUTES = 180;
     const tableGrid = $("tableGrid");
     const openMinutesEl = $("openMinutes");
@@ -249,7 +256,7 @@ main{
       renderButtons();
     });
 
-    // ===== 訂單監聽與渲染（沿用你原本的） =====
+    // ===== 訂單監聽與渲染 =====
     let allOrders = {};
     let currentFilter = "all";
     $("filter").addEventListener("change", ()=>{
