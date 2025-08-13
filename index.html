@@ -375,83 +375,48 @@
     }
 
     /* ========= 送出 ========= */
-   
-  // 送出訂單（整段覆蓋原本的）
-  $("submitBtn").addEventListener("click", async ()=>{
-    if (state.submitting) return;
+    $("submitBtn").addEventListener("click", async ()=>{
+      if (state.submitting) return;
+      state.submitting=true; updateTotal();
 
-    // 蒐集品項
-    const items = [];
-    Object.keys(state.menu).forEach(id=>{
-      const q = getQty(id);
-      if (q>0){
-        const note = $(`note-${id}`)?.value?.trim() || "";
-        items.push({
-          id, name: state.menu[id].name,
-          price: Number(state.menu[id].price)||0, quantity: q, note
-        });
+      const items=[];
+      Object.keys(state.menu).forEach(id=>{
+        const q=getQty(id);
+        if(q>0){
+          const note=$(`note-${id}`)?.value?.trim()||"";
+          items.push({ id, name:state.menu[id].name, price:Number(state.menu[id].price)||0, quantity:q, note });
+        }
+      });
+      if(items.length===0){ showToast("請先選擇餐點"); state.submitting=false; updateTotal(); return; }
+
+      const order = {
+        table: currentTable,
+        sessionId: ACTIVE_SESSION_ID || null,
+        time: new Date().toISOString(),
+        items,
+        total: calcTotal()
+      };
+
+      const btn=$("submitBtn"); const old=btn.textContent; btn.textContent="送出中…"; btn.disabled=true;
+
+      if(state.source==="firebase" && db){
+        try{
+          const ref = await db.ref("orders").push(order);
+          localStorage.removeItem(STORAGE_KEY);
+          setMsg(""); $("success").style.display="block";
+          $("orderId").textContent = ref.key || "(未知編號)";
+          document.querySelector(".panel-body").scrollIntoView({behavior:"smooth"});
+          showToast("訂單已送出");
+        }catch(e){
+          setMsg(`⚠️ 訂單送出失敗：${e.message}`, true);
+          showToast("送出失敗，請重試"); state.submitting=false; btn.textContent=old; updateTotal();
+        }
+      }else{
+        console.log("（JSON 模式）僅前端記錄：", order);
+        setMsg("✅ 已記錄您的選擇（目前為離線/JSON 模式）");
+        showToast("已記錄您的選擇"); state.submitting=false; btn.textContent=old; updateTotal();
       }
     });
-    if (!items.length){ showToast("請先選擇餐點"); return; }
-
-    const order = {
-      table: currentTable,
-      sessionId: ACTIVE_SESSION_ID || null,
-      time: new Date().toISOString(),
-      items,
-      total: items.reduce((s,it)=> s + (it.price*it.quantity), 0)
-    };
-
-    const btn = $("submitBtn");
-    const oldText = btn.textContent;
-
-    // 進入送出中
-    state.submitting = true;
-    btn.textContent = "送出中…";
-    btn.disabled = true;
-
-    try{
-      if (state.source === "firebase" && db){
-        // 寫入 Firebase
-        const ref = await db.ref("orders").push(order);
-
-        // ===== 成功後的 UI：全部用「?」防呆 =====
-        localStorage.removeItem(STORAGE_KEY);
-        $("orderId")?.textContent = ref.key || "(未知編號)";
-        $("success")?.style && ( $("success").style.display = "block" );
-        $("menu")?.style && ( $("menu").style.display = "none" );
-        $("checkoutBar")?.style && ( $("checkoutBar").style.display = "none" );
-        $("msg")?.classList && $("msg").classList.add("ok");
-        if ($("msg")) $("msg").textContent = "";
-
-        showToast("訂單已送出");
-        // 也把按鈕顯示成已送出，避免某些裝置把 bar 保留在畫面底部
-        btn.textContent = "已送出";
-      }else{
-        // JSON/離線模式
-        console.log("（JSON 模式）僅前端記錄：", order);
-        $("msg")?.classList && $("msg").classList.add("ok");
-        if ($("msg")) $("msg").textContent = "✅ 已記錄您的選擇（目前為離線/JSON 模式）";
-        showToast("已記錄您的選擇");
-        btn.textContent = oldText;  // 離線就還原按鈕
-        btn.disabled = false;
-      }
-    }catch(err){
-      // 任何錯誤都回復按鈕狀態
-      console.error(err);
-      $("msg")?.classList && $("msg").classList.add("err");
-      if ($("msg")) $("msg").textContent = `⚠️ 訂單送出失敗：${err.message||err}`;
-      showToast("送出失敗，請重試");
-      btn.textContent = oldText;
-      btn.disabled = false;
-    }finally{
-      // 收尾：結束送出狀態、更新金額
-      state.submitting = false;
-      updateTotal();
-    }
-  });
-</script>
-
 
     /* ========= 啟動 ========= */
     (async()=>{
@@ -461,3 +426,4 @@
   </script>
 </body>
 </html>
+
