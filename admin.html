@@ -30,7 +30,6 @@
     .table-panel {
       background:#fff; border:1px solid #e9ecef; border-radius:12px; padding:12px;
       box-shadow:0 2px 10px rgba(0,0,0,.03);
-
       position:sticky; top:72px;  /* 與 header 高度對齊 */
       z-index:3; background:#fff;
     }
@@ -162,6 +161,19 @@
     const fmt = new Intl.NumberFormat("zh-TW");
     const statusFlow = ["new","preparing","served","paid"];
 
+    // ➜ 台灣時區時間格式工具（統一顯示）
+    const TAIPEI_TZ = "Asia/Taipei";
+    function formatTW(ts) {
+      const d = typeof ts === "string" ? new Date(ts) : new Date(Number(ts));
+      if (isNaN(d)) return "—";
+      return d.toLocaleString("zh-TW", {
+        timeZone: TAIPEI_TZ,
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+        hour12: false
+      });
+    }
+
     // ===== 桌位按鈕面板 =====
     const NUM_TABLES = 10;
     const DEFAULT_MINUTES = 180;
@@ -241,7 +253,8 @@
           const now = Date.now();
           const expiresAt = now + minutes*60*1000;
           await ref.set({ id, openedAt: now, expiresAt });
-          $("sessMsg").textContent = `桌 ${tableNo} 已開桌（${minutes} 分），到期 ${new Date(expiresAt).toLocaleString()}`;
+          $("sessMsg").textContent =
+            `桌 ${tableNo} 已開桌（${minutes} 分），到期 ${formatTW(expiresAt)}`;  // ✅ 台灣時區
           $("sessMsg").className = "ok";
         }
       }catch(e){
@@ -305,7 +318,7 @@
         el.innerHTML = `
           <div class="order-head">
             <span>桌號：<b>${o.table||"?"}</b></span>
-            <span class="muted">時間：${o.time||"—"}</span>
+            <span class="muted">時間：${formatTW(o.time)}</span>  <!-- ✅ 台灣時區 -->
             <span class="pill ${o.status||"new"}">${o.status||"new"}</span>
             <span class="order-code">${id}</span>
           </div>
