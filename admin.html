@@ -5,214 +5,216 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>點餐系統</title>
 
+  <!-- 禁止快取，更新樣式時比較不會卡住 -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
   <!-- Firebase（compat 版） -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
   <style>
     :root{
-      --bg:#efe7da;            /* 溫暖米色背景 */
-      --card:#fffaf3;          /* 主卡片底色（暖白） */
-      --ink:#101828;           /* 文字主色 */
-      --muted:#596173;         /* 次要文字 */
-      --brand:#0f2745;         /* 深藍標頭 */
-      --accent:#ff7a00;        /* 亮橘強調（進度條等） */
-      --line:#e8dfcf;          /* 卡片內分隔線 */
-      --btn:#0d6efd;           /* 主要按鈕 */
-      --radius:22px;
       color-scheme: light;
+      --bg:#f3efe7;            /* 米色底 */
+      --card:#fff;             /* 卡片白 */
+      --ink:#1f2937;           /* 文字 */
+      --muted:#6b7280;
+      --brand:#0f1b2d;         /* 深藍標頭 */
+      --accent:#ff7a00;        /* 底部橘色條 */
+      --primary:#0d6efd;       /* 主要按鈕 */
+      --radius:16px;
+      --shadow:0 10px 24px rgba(0,0,0,.08);
     }
+
     *{ box-sizing:border-box; }
     html,body{ height:100%; }
     body{
-      margin:0; background:
-        radial-gradient(1200px 600px at -10% -10%, #ffffff88, #0000),
-        radial-gradient(900px 500px at 120% -10%, #ffffff55, #0000),
-        var(--bg);
-      font-family: system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",Arial;
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system,"Segoe UI",Roboto,"Noto Sans TC",Arial;
       color:var(--ink);
+      background:
+        radial-gradient(40rem 40rem at -10% -10%, #ffffff90, transparent 60%),
+        radial-gradient(30rem 30rem at 120% -20%, #fce9d480, transparent 55%),
+        var(--bg);
     }
 
-    /* ===== 殼層 ===== */
-    .shell{
-      max-width:980px; margin:24px auto; padding:16px;
-    }
+    /* 外框 Panel */
     .panel{
-      background:var(--card);
-      border-radius:var(--radius);
-      box-shadow:
-        0 20px 50px rgba(16,24,40,.08),
-        inset 0 0 0 1px #e9e2d4;
+      max-width: 980px;
+      margin: 22px auto 110px;
+      border-radius: calc(var(--radius) + 4px);
+      box-shadow: var(--shadow);
+      background: var(--card);
       overflow:hidden;
     }
-
-    /* ===== 深色標頭 ===== */
     .panel-head{
-      background:var(--brand);
+      background: var(--brand);
       color:#fff;
-      padding:22px 22px;
-      display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+      padding: 20px 22px;
+      display:flex; align-items:center; gap:14px;
     }
-    .title{
-      font-weight:900; letter-spacing:.04em;
-      font-size: clamp(22px, 6.2vw, 40px);
+    .panel-head h1{
+      margin:0; font-size: clamp(22px, 4.8vw, 34px); letter-spacing:.06em;
       display:flex; align-items:center; gap:10px;
+      font-weight:900;
     }
-    .badge{
-      margin-left:auto; font-size:16px; opacity:.95;
-      background:#ffffff1a; padding:6px 12px; border-radius:12px;
-    }
+    .panel-head small{ display:block; margin-top:6px; font-size:15px; opacity:.9; }
 
-    /* ===== 主體 ===== */
-    .panel-body{ padding:20px; }
-    .hint{ color:#0b5ed7; font-weight:700; text-align:center; margin:10px 0 0; }
+    .panel-body{ padding: 18px; background: #fbfaf7; }
+
+    /* 類別標題 */
     h2.cat{
-      margin:18px 0 8px; font-size:22px; font-weight:900;
-      letter-spacing:.02em;
+      margin: 14px 6px 10px;
+      font-size: clamp(18px, 4.2vw, 22px);
     }
 
-    /* ===== 菜單列（像圖二） ===== */
+    /* 菜單列：左圖右文 */
     .menu-row{
-      background:#fff; border:1px solid var(--line);
-      border-radius:18px; padding:14px; display:flex; gap:16px;
-      align-items:center; box-shadow:0 8px 18px rgba(16,24,40,.06);
-      margin:14px 0;
+      background:var(--card);
+      border:1px solid #ece7dd;
+      border-radius: var(--radius);
+      box-shadow: 0 4px 14px rgba(0,0,0,.05);
+      padding:14px;
+      display:grid;
+      grid-template-columns: 96px 1fr;
+      gap:14px;
+      align-items:center;
+      margin:12px 6px;
     }
     .thumb{
-      width:110px; height:110px; flex:0 0 110px;
-      border-radius:14px; overflow:hidden; background:#f1f3f6; display:flex; align-items:center; justify-content:center;
+      width:96px; height:96px; border-radius: 12px; overflow:hidden;
+      background:#f2f3f5; display:flex; align-items:center; justify-content:center;
+      box-shadow: inset 0 0 0 1px #e9edf2;
     }
     .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
-
-    .info{ flex:1 1 auto; min-width:0; }
-    .topline{
+    .meta{ display:flex; flex-direction:column; gap:10px; }
+    .title{
       display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
-      margin-bottom:10px;
     }
-    .nm{
-      font-size: clamp(18px, 4.5vw, 26px);
-      font-weight:900; letter-spacing:.02em;
-    }
-    .pr{
-      font-size: clamp(16px, 4.2vw, 22px);
-      font-weight:800; color:#3b3f4a;
-    }
+    .name{ font-size: clamp(18px, 4.4vw, 22px); font-weight:900; }
+    .price{ font-size: clamp(16px, 4vw, 20px); color:var(--ink); }
 
-    .note{
-      width:100%; border:1px solid #dcd6c7; background:#fffbf2;
-      border-radius:10px; padding:10px 12px; font-size:16px;
+    /* 加減數量條 */
+    .qtyline{
+      display:flex; align-items:center; gap:12px; flex-wrap:wrap;
     }
-
     .qtybox{
       margin-left:auto; display:flex; align-items:center; gap:10px;
-      background:#f6f2ea; border:1px solid var(--line); border-radius:12px; padding:6px;
     }
-    .qbtn{
-      width:44px; height:44px; border-radius:12px; border:1px solid #d0d7de; background:#fff;
-      font-size:24px; font-weight:900; line-height:1; cursor:pointer;
+    .btn{
+      width:44px; height:44px; border-radius:12px;
+      border:1px solid #d0d7de; background:#fff;
       display:flex; align-items:center; justify-content:center;
-      box-shadow:0 2px 0 #00000005;
+      font-size:24px; line-height:1; cursor:pointer;
+      box-shadow:0 2px 6px rgba(0,0,0,.06);
     }
-    .qbtn:active{ transform:scale(.98); }
-    .qtydisp{
-      min-width:34px; text-align:center; font-weight:900; font-size:22px;
+    .btn:active{ transform: scale(.98); }
+    .qtydisp{ min-width:28px; text-align:center; font-weight:900; font-size:22px; }
+
+    .note{
+      width:100%; height:42px;
+      padding:10px 12px; border-radius:10px; border:1px solid #e3e3e3;
+      background:#fff; color:var(--ink); font-size:16px;
     }
 
-    /* ===== 結帳列 ===== */
-    .checkout-bar{
-      position:sticky; bottom:0; z-index:10;
-      background:linear-gradient(#fff0, #fff5), var(--card);
-      border-top:1px solid var(--line);
-      padding:14px 16px; display:flex; align-items:center; gap:14px;
-      border-bottom-left-radius:var(--radius); border-bottom-right-radius:var(--radius);
+    /* 底部小計條＋送出 */
+    .checkout{
+      position:fixed; left:0; right:0; bottom:0;
+      background: linear-gradient(#fff, #f7f3ea);
+      border-top:1px solid #e9e1d3;
+      padding:12px; display:flex; align-items:center; gap:12px;
+      z-index:10;
     }
-    .sum{ font-size:22px; font-weight:900; }
-    .muted{ color:var(--muted); font-size:16px; }
+    .sum{ font-size: clamp(18px,4.2vw,22px); font-weight:900; }
+    .muted{ color:var(--muted); font-size:15px; margin-left:6px; }
     .primary{
-      margin-left:auto; padding:12px 18px; font-size:18px; font-weight:900;
-      background:#0d6efd; color:#fff; border:0; border-radius:14px; cursor:pointer;
-      box-shadow:0 8px 20px rgba(13,110,253,.25);
+      margin-left:auto; padding:.9rem 1.25rem; font-size:18px; font-weight:900;
+      background:#2b5bea; color:#fff; border:0; border-radius:14px; cursor:pointer;
+      box-shadow: 0 8px 24px rgba(43,91,234,.35);
     }
-    .primary[disabled]{ opacity:.6; cursor:not-allowed; box-shadow:none; }
+    .primary[disabled]{ opacity:.55; cursor:not-allowed; box-shadow:none; }
 
-    /* 訊息/Toast/成功區 */
-    .message{ padding:8px 0; min-height:1.25rem; font-weight:700; }
-    .ok{ color:#0a7d39; } .err{ color:#b3261e; } .info{ color:#0b5ed7; }
-    .success{ display:none; padding:32px; text-align:center; }
-    .success h3{ margin:0 0 8px; font-size:24px; }
-    .code{ font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-           background:#f1f3f5; border:1px dashed #cbd5e1; border-radius:8px;
-           display:inline-block; padding:6px 10px; }
+    /* 底部橘色裝飾條（純視覺） */
+    .accent-bar{
+      height:16px; border-radius:12px; background:var(--accent); opacity:.85;
+      margin:18px 6px 6px;
+    }
 
+    /* 成功畫面 */
+    .success{ display:none; padding:30px; text-align:center; }
+    .success h3{ margin:0 0 8px; font-size:22px; }
+    .code{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background:#f6f4ed; border:1px dashed #d9ccb6; border-radius:8px;
+      display:inline-block; padding:6px 10px;
+    }
+
+    /* Toast */
     .toast{
-      position:fixed; left:50%; bottom:80px; transform:translateX(-50%);
-      background:rgba(0,0,0,.88); color:#fff; padding:10px 14px; border-radius:10px;
-      font-size:.95rem; opacity:0; pointer-events:none; transition:opacity .25s; z-index:100;
+      position:fixed; left:50%; bottom:84px; transform:translateX(-50%);
+      background:rgba(0,0,0,.85); color:#fff; padding:10px 14px; border-radius:10px;
+      font-size:.95rem; opacity:0; pointer-events:none; transition:opacity .25s;
+      z-index:100;
     }
     .toast.show{ opacity:1; }
 
-    /* 手機微調 */
-    @media (max-width:560px){
-      .panel-body{ padding:14px; }
-      .thumb{ width:96px; height:96px; flex-basis:96px; }
-      .qbtn{ width:40px; height:40px; font-size:22px; }
-      .qtydisp{ font-size:20px; min-width:30px; }
+    /* 手機窄螢幕調整 */
+    @media (max-width:640px){
+      .menu-row{ grid-template-columns: 84px 1fr; gap:12px; }
+      .thumb{ width:84px; height:84px; }
+      .btn{ width:40px; height:40px; font-size:22px; }
     }
   </style>
 </head>
 <body>
-  <div class="shell">
-    <div class="panel">
-      <div class="panel-head">
-        <div class="title">🗒️ 手機點餐</div>
-        <div class="badge" id="tableInfo">桌號：—</div>
-      </div>
-
-      <div class="panel-body">
-        <div id="msg" class="message info"></div>
-        <div id="menu"></div>
-        <p id="modeHint" class="hint" style="display:none;">（目前為離線 / JSON 模式）</p>
-
-        <section id="success" class="success">
-          <h3>✅ 訂單已送出</h3>
-          <p>您的訂單編號：</p>
-          <p class="code" id="orderId">—</p>
-          <p style="margin-top:8px;">請保持頁面或出示此畫面給服務人員。</p>
-          <button class="primary" onclick="location.href = location.pathname + location.search">回到點餐</button>
-        </section>
-      </div>
-
-      <div class="checkout-bar" id="checkoutBar">
-        <div class="sum" id="total">合計金額：$0</div>
-        <div class="muted" id="tableInfoFooter"></div>
-        <button class="primary" id="submitBtn" disabled>送出訂單</button>
-      </div>
+  <div class="panel">
+    <div class="panel-head">
+      <h1>🗒️ 手機點餐</h1>
     </div>
+
+    <div class="panel-body">
+      <div id="tableLine" style="margin:4px 6px 14px; color:#fff0; height:0;"></div>
+      <div id="menu"></div>
+
+      <div id="msg" style="padding:10px 6px; font-weight:700;"></div>
+
+      <div class="accent-bar" aria-hidden="true"></div>
+
+      <section id="success" class="success">
+        <h3>✅ 訂單已送出</h3>
+        <p>您的訂單編號：</p>
+        <p class="code" id="orderId">—</p>
+        <p style="margin-top:8px;">請保持頁面或出示此畫面給服務人員。</p>
+        <button class="primary" onclick="location.href = location.pathname + location.search">回到點餐</button>
+      </section>
+    </div>
+  </div>
+
+  <div class="checkout">
+    <div class="sum" id="total">合計金額：$0</div>
+    <div class="muted" id="tableInfo"></div>
+    <button class="primary" id="submitBtn" disabled>送出訂單</button>
   </div>
 
   <div class="toast" id="toast"></div>
 
   <script>
-    // ========= 基本工具 =========
+    /* ========= 小工具 ========= */
     const $ = (id) => document.getElementById(id);
     const fmt = new Intl.NumberFormat('zh-TW');
-    function showToast(text, ms=1600){
-      const t = $("toast"); t.textContent = text; t.classList.add("show");
-      setTimeout(()=> t.classList.remove("show"), ms);
-    }
+    function showToast(text, ms=1600){ const t=$("toast"); t.textContent=text; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"), ms); }
 
-    // ========= 狀態 =========
+    /* ========= 狀態 ========= */
     const qs = new URLSearchParams(location.search);
     const currentTable = qs.get("table") || "01";
-    $("tableInfo").textContent = `桌號：${currentTable}`;
-    $("tableInfoFooter").textContent = `桌號：${currentTable}`;
+    $("tableInfo").textContent = `桌號： ${currentTable}`;
     const STORAGE_KEY = `cart_${currentTable}`;
-    const state = { source: null, menu: {}, submitting: false };
-
-    // 有效 session id（通過開桌檢查後取得）
+    const state = { source:null, menu:{}, submitting:false };
     let ACTIVE_SESSION_ID = null;
 
-    // ========= Firebase 設定 =========
+    /* ========= Firebase ========= */
     const firebaseConfig = {
       apiKey: "AIzaSyDaC14zf1ZxOsd-twyjzSgTIcNBwty1Is",
       authDomain: "zero-01-17457.firebaseapp.com",
@@ -222,135 +224,103 @@
       appId: "1:534119998616:web:ec3b6c2d48318f9c51ced",
       databaseURL: "https://zero-01-17457-default-rtdb.asia-southeast1.firebasedatabase.app"
     };
+    let db=null; try{ firebase.initializeApp(firebaseConfig); db=firebase.database(); }catch(e){ console.warn("Firebase 初始化失敗，改用 JSON 模式：", e); }
 
-    let db = null;
-    try { firebase.initializeApp(firebaseConfig); db = firebase.database(); }
-    catch(e){ console.warn("Firebase 初始化失敗，改用 JSON 備援：", e); }
-
-    // ========= 資料正規化：把 {menu_items:{...}} 攤平成 {...} =========
     function normalizeMenuData(data){
-      if (data && typeof data === "object" &&
-          data.menu_items && typeof data.menu_items === "object") {
-        return data.menu_items;
-      }
+      if (data && typeof data==="object" && data.menu_items && typeof data.menu_items==="object") return data.menu_items;
       return data || {};
     }
 
-    // ========= 菜單來源控制 =========
-    const MENU_VER = "2025-08-13-02";                 // 換版本避免快取
-    const MENU_URL = `menu_items.json?v=${MENU_VER}`; // 避免快取
-    const sourceOverride = qs.get("source");          // ?source=json 可強制用 JSON
+    const MENU_VER = "ui-2025-08-13-02";
+    const MENU_URL = `menu_items.json?v=${MENU_VER}`;
+    const sourceOverride = qs.get("source");
 
-    // ========= 開桌 session 檢查 =========
+    /* ========= 開桌檢查 ========= */
     async function checkSession(){
-      if (!db) return true; // JSON 模式放行
+      if (!db) return true;
       try{
         const snap = await db.ref(`tables/${currentTable}/session`).once("value");
         const sess = snap.val();
         if (!sess || !sess.id || !sess.expiresAt || Number(sess.expiresAt) <= Date.now()){
-          $("msg").className = "message err";
-          $("msg").textContent = "此桌尚未開桌或已結帳，請洽服務人員。";
+          setMsg("此桌尚未開桌或已結帳，請洽服務人員。", true);
           $("submitBtn").disabled = true;
           return false;
         }
         ACTIVE_SESSION_ID = String(sess.id);
         return true;
       }catch(e){
-        $("msg").className = "message err";
-        $("msg").textContent = "讀取桌況失敗，請稍後重試或洽服務人員。";
+        setMsg("讀取桌況失敗，請稍後重試或洽服務人員。", true);
         $("submitBtn").disabled = true;
         return false;
       }
     }
+    function setMsg(text, err=false){ const el=$("msg"); el.textContent=text; el.style.color= err ? "#b3261e" : "#0b5ed7"; }
 
-    // ========= 讀菜單（Firebase 優先，失敗/覆蓋則用 JSON）=========
+    /* ========= 讀菜單 ========= */
     async function loadMenu(){
-      $("msg").className = "message info";
-      $("msg").textContent = "正在載入菜單…";
-
-      if (db && sourceOverride !== "json"){
+      setMsg("正在載入菜單…");
+      if (db && sourceOverride!=="json"){
         try{
           const snap = await db.ref("menu_items").once("value");
           const data = normalizeMenuData(snap.val());
           if (data && Object.keys(data).length){
-            state.source = "firebase";
-            state.menu = data;
-            renderMenu(data);
-            restoreCart();
-            updateTotal();
-            $("msg").textContent = "";
-            $("modeHint").style.display = "none";
+            state.source="firebase"; state.menu=data; renderMenu(data); restoreCart(); updateTotal(); setMsg("");
             return;
           }
-        }catch(err){ console.warn("讀取 Firebase 失敗：", err); }
+        }catch(e){ console.warn("讀取 Firebase 失敗：", e); }
       }
-
       try{
-        const res = await fetch(MENU_URL, { cache: "no-store" });
+        const res = await fetch(MENU_URL, { cache:"no-store" });
         if(!res.ok) throw new Error(`HTTP ${res.status}`);
-        const raw  = await res.json();
+        const raw = await res.json();
         const data = normalizeMenuData(raw);
-        state.source = "json";
-        state.menu = data;
-        renderMenu(data);
-        restoreCart();
-        updateTotal();
-        $("msg").textContent = "";
-        $("modeHint").style.display = "block";
-      }catch(err){
-        $("msg").className = "message err";
-        $("msg").textContent = `⚠️ 無法取得菜單：${err.message}`;
-      }
+        state.source="json"; state.menu=data; renderMenu(data); restoreCart(); updateTotal();
+        setMsg("（目前為離線/JSON 模式）");
+      }catch(e){ setMsg(`⚠️ 無法取得菜單：${e.message}`, true); }
     }
 
     /* ========= 數量工具 ========= */
-    function getQty(id){
-      return parseInt((document.getElementById(`qty-${id}`)?.value)||"0",10) || 0;
-    }
+    const getQty = id => parseInt( (document.getElementById(`qty-${id}`)?.value)||"0",10 ) || 0;
     function setQty(id, v){
-      const val = Math.max(0, Math.min(99, parseInt(v,10)||0)); // 上限 99 可調
+      const val = Math.max(0, Math.min(99, parseInt(v,10)||0));
       const hidden = document.getElementById(`qty-${id}`);
       const disp   = document.getElementById(`qtdis-${id}`);
       if (hidden) hidden.value = val;
       if (disp)   disp.textContent = val;
     }
 
-    // ========= 渲染菜單（新樣式） =========
+    /* ========= 渲染 ========= */
     function renderMenu(raw){
       const menu = $("menu");
       menu.innerHTML = "";
-      const grouped = {};
-      Object.entries(raw).forEach(([id, item])=>{
-        (grouped[item.category || "其他"] ||= []).push({ ...item, id });
-      });
+      const grouped={};
+      Object.entries(raw).forEach(([id,item]) => (grouped[item.category||"其他"] ??= []).push({...item,id}));
 
       Object.entries(grouped).forEach(([cat, items])=>{
-        const h = document.createElement("h2");
-        h.className = "cat";
-        h.textContent = cat;
-        menu.appendChild(h);
+        const h = document.createElement("h2"); h.className="cat"; h.textContent=cat; menu.appendChild(h);
 
         items.forEach(item=>{
           const row = document.createElement("div");
-          row.className = "menu-row";
+          row.className="menu-row";
           row.innerHTML = `
             <div class="thumb">
-              ${item.img ? `<img src="${item.img}" alt="${item.name||''}" loading="lazy"
-                            onerror="this.style.display='none'">` : ``}
+              ${item.img ? `<img src="${item.img}" alt="${item.name||''}" loading="lazy" onerror="this.remove()">` : ""}
             </div>
+            <div class="meta">
+              <div class="title">
+                <div class="name">${item.name||""}</div>
+                <div class="price">$ ${fmt.format(Number(item.price)||0)}</div>
+              </div>
 
-            <div class="info">
-              <div class="topline">
-                <div class="nm">${item.name || ""}</div>
-                <div class="pr">＄${fmt.format(Number(item.price)||0)}</div>
+              <div class="qtyline">
+                ${item.enable_note ? `<input class="note" id="note-${item.id}" placeholder="備註（可留空）">` : `<span class="muted" style="font-size:14px;"></span>`}
+
                 <div class="qtybox" data-id="${item.id}">
-                  <button class="qbtn minus" type="button" data-id="${item.id}" aria-label="減">−</button>
+                  <button class="btn minus" type="button" data-id="${item.id}" aria-label="減">−</button>
                   <span class="qtydisp" id="qtdis-${item.id}">0</span>
-                  <button class="qbtn plus"  type="button" data-id="${item.id}" aria-label="加">＋</button>
+                  <button class="btn plus"  type="button" data-id="${item.id}" aria-label="加">＋</button>
                 </div>
               </div>
-              ${item.enable_note ? `
-                <input class="note" type="text" id="note-${item.id}" placeholder="備註（可留空）">` : ``}
             </div>
 
             <input type="hidden" id="qty-${item.id}" value="0">
@@ -359,137 +329,99 @@
         });
       });
 
-      // 綁定 + / - 事件
+      // 綁定 + / -
       menu.querySelectorAll(".qtybox .plus").forEach(btn=>{
-        btn.onclick = () => {
-          const id = btn.dataset.id;
-          setQty(id, getQty(id) + 1);
-          updateTotal(); saveCart();
-        };
+        btn.onclick = ()=>{ const id=btn.dataset.id; setQty(id, getQty(id)+1); updateTotal(); saveCart(); };
       });
       menu.querySelectorAll(".qtybox .minus").forEach(btn=>{
-        btn.onclick = () => {
-          const id = btn.dataset.id;
-          setQty(id, Math.max(0, getQty(id) - 1));
-          updateTotal(); saveCart();
-        };
+        btn.onclick = ()=>{ const id=btn.dataset.id; setQty(id, Math.max(0, getQty(id)-1)); updateTotal(); saveCart(); };
       });
-
-      // 備註改變時儲存
-      menu.querySelectorAll("input.note").forEach(n => {
-        n.addEventListener("change", saveCart);
-      });
+      // 備註儲存
+      menu.querySelectorAll("input.note").forEach(n=> n.addEventListener("change", saveCart));
     }
 
-    // ========= 暫存（依桌號分開）=========
+    /* ========= 暫存 ========= */
     function saveCart(){
-      const data = {};
+      const data={};
       Object.keys(state.menu).forEach(id=>{
-        const qty  = getQty(id);
-        const note = $(`note-${id}`)?.value || "";
-        if (qty>0 || note) data[id] = { qty, note };
+        const qty=getQty(id); const note=$(`note-${id}`)?.value||"";
+        if (qty>0 || note) data[id]={qty, note};
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
-
     function restoreCart(){
       try{
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if(!raw) return;
-        const cart = JSON.parse(raw);
-        Object.entries(cart).forEach(([id, {qty, note}])=>{
-          setQty(id, qty);
-          const nEl = $(`note-${id}`); if (nEl && note) nEl.value = note;
+        const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return;
+        const cart=JSON.parse(raw);
+        Object.entries(cart).forEach(([id,{qty,note}])=>{
+          setQty(id, qty); const nEl=$(`note-${id}`); if(nEl && note) nEl.value=note;
         });
       }catch{}
     }
 
-    // ========= 統一的總價計算 =========
+    /* ========= 計算 ========= */
     function calcTotal(){
-      let total = 0;
+      let total=0;
       Object.keys(state.menu).forEach(id=>{
-        const q = getQty(id);
-        if (q>0) total += (Number(state.menu[id].price)||0) * q;
+        const q=getQty(id); if(q>0) total += (Number(state.menu[id].price)||0) * q;
       });
       return total;
     }
-
-    // ========= 計算總價 & 控制送出鈕 =========
     function updateTotal(){
-      const total = calcTotal();
-      let count = 0;
-      Object.keys(state.menu).forEach(id=>{ count += getQty(id); });
+      const total=calcTotal(); let count=0;
+      Object.keys(state.menu).forEach(id=> count += getQty(id));
       $("total").textContent = `合計金額：$${fmt.format(total)}${count?`（${count} 項）`:""}`;
-      $("submitBtn").disabled = (count === 0) || state.submitting;
+      $("submitBtn").disabled = (count===0) || state.submitting;
     }
 
-    // ========= 送出訂單 =========
+    /* ========= 送出 ========= */
     $("submitBtn").addEventListener("click", async ()=>{
       if (state.submitting) return;
-      state.submitting = true; updateTotal();
+      state.submitting=true; updateTotal();
 
-      const items = [];
+      const items=[];
       Object.keys(state.menu).forEach(id=>{
-        const q = getQty(id);
-        if (q>0){
-          const note = $(`note-${id}`)?.value?.trim() || "";
-          items.push({
-            id, name: state.menu[id].name,
-            price: Number(state.menu[id].price)||0, quantity: q, note
-          });
+        const q=getQty(id);
+        if(q>0){
+          const note=$(`note-${id}`)?.value?.trim()||"";
+          items.push({ id, name:state.menu[id].name, price:Number(state.menu[id].price)||0, quantity:q, note });
         }
       });
-
-      if (items.length === 0){
-        showToast("請先選擇餐點");
-        state.submitting = false; updateTotal(); return;
-      }
-
-      const total = calcTotal();
+      if(items.length===0){ showToast("請先選擇餐點"); state.submitting=false; updateTotal(); return; }
 
       const order = {
         table: currentTable,
         sessionId: ACTIVE_SESSION_ID || null,
         time: new Date().toISOString(),
         items,
-        total
+        total: calcTotal()
       };
 
-      const btn = $("submitBtn");
-      const oldText = btn.textContent;
-      btn.textContent = "送出中…";
-      btn.disabled = true;
+      const btn=$("submitBtn"); const old=btn.textContent; btn.textContent="送出中…"; btn.disabled=true;
 
-      if (state.source === "firebase" && db){
+      if(state.source==="firebase" && db){
         try{
           const ref = await db.ref("orders").push(order);
           localStorage.removeItem(STORAGE_KEY);
-          $("msg").className = "message ok";
-          $("msg").textContent = "";
-          $("success").style.display = "block";
+          setMsg(""); $("success").style.display="block";
           $("orderId").textContent = ref.key || "(未知編號)";
-          $("checkoutBar").style.display = "none";
-          $("menu").style.display = "none";
+          document.querySelector(".panel-body").scrollIntoView({behavior:"smooth"});
           showToast("訂單已送出");
-        }catch(err){
-          $("msg").className = "message err";
-          $("msg").textContent = `⚠️ 訂單送出失敗：${err.message}`;
-          showToast("送出失敗，請重試");
-          state.submitting = false; btn.textContent = oldText; updateTotal();
+        }catch(e){
+          setMsg(`⚠️ 訂單送出失敗：${e.message}`, true);
+          showToast("送出失敗，請重試"); state.submitting=false; btn.textContent=old; updateTotal();
         }
       }else{
         console.log("（JSON 模式）僅前端記錄：", order);
-        $("msg").className = "message ok";
-        $("msg").textContent = "✅ 已記錄您的選擇（目前為離線/JSON 模式）";
-        showToast("已記錄您的選擇");
-        state.submitting = false; btn.textContent = oldText; updateTotal();
+        setMsg("✅ 已記錄您的選擇（目前為離線/JSON 模式）");
+        showToast("已記錄您的選擇"); state.submitting=false; btn.textContent=old; updateTotal();
       }
     });
 
-    // ========= 啟動：先檢查開桌，再載菜單 =========
-    (async () => {
+    /* ========= 啟動 ========= */
+    (async()=>{
       const ok = await checkSession();
-      if (ok) loadMenu();
+      if(ok) loadMenu();
     })();
   </script>
 </body>
