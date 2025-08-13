@@ -22,7 +22,7 @@
     select, button, input { font:inherit; }
     main {
       padding:16px;
-      display:grid; grid-template-columns: 420px 1fr;  /* 左 420px，右自動 */
+      display:grid; grid-template-columns: 420px 1fr;
       gap:24px; align-items:start;
     }
 
@@ -30,17 +30,16 @@
     .table-panel {
       background:#fff; border:1px solid #e9ecef; border-radius:12px; padding:12px;
       box-shadow:0 2px 10px rgba(0,0,0,.03);
-      position:sticky; top:72px;  /* 與 header 高度對齊 */
+      position:sticky; top:72px;
       z-index:3; background:#fff;
     }
     .table-toolbar { display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
     .table-toolbar strong { font-weight:800; }
     .table-grid {
       display:grid;
-      grid-template-columns: repeat(4, minmax(90px, 1fr));  /* ✅ 固定四桌一排 */
+      grid-template-columns: repeat(4, minmax(90px, 1fr));
       gap:10px;
     }
-    /* 響應式：寬度縮小時自動改欄數 */
     @media (max-width: 1200px){
       .table-grid { grid-template-columns: repeat(3, minmax(90px,1fr)); }
     }
@@ -60,12 +59,14 @@
     .table-btn.open  { background:#ecfdf5; border-color:#34d399; color:#065f46; }
     .table-btn.close { background:#fef2f2; border-color:#f87171; color:#7f1d1d; }
 
-    /* 訂單清單 */
+    /* 訂單清單＋標籤 */
     .toolbar { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .tag { padding:2px 8px; border-radius:999px; font-size:.85rem; border:1px solid #e1e5ea; background:#fff; }
+    .tag { padding:4px 10px; border-radius:999px; font-size:.9rem; border:1px solid #e1e5ea; background:#fff; }
     .muted { color:#6c757d; }
     .ok { color:#0a7d39; }
     .err { color:#b3261e; }
+    .rev { background:#0b5ed7; color:#fff; border-color:#0b5ed7; }
+    .rev.secondary { background:#111827; border-color:#111827; }
 
     .order {
       background:#fff; border:1px solid #e9ecef; border-radius:12px; padding:12px; margin:12px 0;
@@ -95,7 +96,6 @@
     .ops button:disabled { opacity:.6; cursor:not-allowed; }
     .empty { text-align:center; color:#6c757d; margin-top:40px; }
 
-    /* 手機：上下堆疊，面板不 sticky */
     @media (max-width: 1024px){
       main { grid-template-columns: 1fr; gap:16px; }
       .table-panel { position:static; }
@@ -106,6 +106,8 @@
   <header>
     <h1>🍽️ 後台管理</h1>
     <div class="toolbar">
+      <span id="revDay" class="tag rev">今日營收：$0</span>
+      <span id="revMonth" class="tag rev secondary">本月營收：$0</span>
       <label>狀態篩選：
         <select id="filter">
           <option value="all">全部</option>
@@ -160,9 +162,8 @@
     const $ = id => document.getElementById(id);
     const fmt = new Intl.NumberFormat("zh-TW");
     const statusFlow = ["new","preparing","served","paid"];
-
-    // ➜ 台灣時區時間格式工具（統一顯示）
     const TAIPEI_TZ = "Asia/Taipei";
+
     function formatTW(ts) {
       const d = typeof ts === "string" ? new Date(ts) : new Date(Number(ts));
       if (isNaN(d)) return "—";
@@ -174,7 +175,30 @@
       });
     }
 
-    // ===== 桌位按鈕面板 =====
+    // 依台灣時區判斷是否同一天／同月
+    function sameDayTW(a, b = new Date()){
+      const tz = TAIPEI_TZ;
+      const da = new Date(a);
+      const ya = new Intl.DateTimeFormat('zh-TW',{timeZone:tz,year:'numeric'}).format(da);
+      const ma = new Intl.DateTimeFormat('zh-TW',{timeZone:tz,month:'2-digit'}).format(da);
+      const daa= new Intl.DateTimeFormat('zh-TW',{timeZone:tz,day:'2-digit'}).format(da);
+      const db = new Date(b);
+      const yb = new Intl.DateTimeFormat('zh-TW',{timeZone:tz,year:'numeric'}).format(db);
+      const mb = new Intl.DateTimeFormat('zh-TW',{timeZone:tz,month:'2-digit'}).format(db);
+      const dab= new Intl.DateTimeFormat('zh-TW',{timeZone:tz,day:'2-digit'}).format(db);
+      return ya===yb && ma===mb && daa===dab;
+    }
+    function sameMonthTW(a, b = new Date()){
+      const tz = TAIPEI_TZ;
+      const da = new Date(a), db = new Date(b);
+      const ya = new Intl.DateTimeFormat('zh-TW',{timeZone:tz,year:'numeric'}).format(da);
+      const ma = new Intl.DateTimeFormat('zh-TW',{timeZone:tz,month:'2-digit'}).format(da);
+      const yb = new Intl.DateTimeFormat('zh-TW',{timeZone:tz,year:'numeric'}).format(db);
+      const mb = new Intl.DateTimeFormat('zh-TW',{timeZone:tz,month:'2-digit'}).format(db);
+      return ya===yb && ma===mb;
+    }
+
+    // ===== 桌位面板 =====
     const NUM_TABLES = 10;
     const DEFAULT_MINUTES = 180;
     const tableGrid = $("tableGrid");
@@ -243,18 +267,15 @@
 
       try{
         if (alive){
-          // 關桌
           await ref.remove();
           $("sessMsg").textContent = `桌 ${tableNo} 已關桌`;
           $("sessMsg").className = "ok";
         }else{
-          // 開桌
           const id = genSessionId();
           const now = Date.now();
           const expiresAt = now + minutes*60*1000;
           await ref.set({ id, openedAt: now, expiresAt });
-          $("sessMsg").textContent =
-            `桌 ${tableNo} 已開桌（${minutes} 分），到期 ${formatTW(expiresAt)}`;  // ✅ 台灣時區
+          $("sessMsg").textContent = `桌 ${tableNo} 已開桌（${minutes} 分），到期 ${formatTW(expiresAt)}`;
           $("sessMsg").className = "ok";
         }
       }catch(e){
@@ -263,13 +284,12 @@
       }
     }
 
-    // 即時監聽 /tables
     tablesRef.on('value', snap => {
       tablesCache = snap.val() || {};
       renderButtons();
     });
 
-    // ===== 訂單監聽與渲染 =====
+    // ===== 訂單監聽與渲染 + 營收統計 =====
     let allOrders = {};
     let currentFilter = "all";
     $("filter").addEventListener("change", ()=>{
@@ -279,11 +299,46 @@
 
     ordersRef.on("value", snap=>{
       allOrders = snap.val() || {};
+      updateRevenue(allOrders);      // ★ 更新日/月營收
       renderOrders(allOrders);
     }, err=>{
       $("info").textContent = "讀取失敗：" + err.message;
       $("info").className = "tag err";
     });
+
+    // 以「paid」訂單為營收；若 total 缺漏，用品項回推
+    function orderSubtotal(o){
+      if (!o) return 0;
+      const dbTotal = Number(o.total);
+      if (!isNaN(dbTotal)) return dbTotal;
+      let calc = 0;
+      if (o.items && typeof o.items === "object") {
+        Object.values(o.items).forEach(it=>{
+          const p = Number(it.price)||0;
+          const q = Number(it.quantity)||0;
+          calc += p*q;
+        });
+      }
+      return calc;
+    }
+
+    function updateRevenue(orders){
+      let revDay = 0, revMonth = 0, cntDay = 0, cntMonth = 0;
+      const now = new Date();
+
+      Object.values(orders||{}).forEach(o=>{
+        if (!o) return;
+        if ((o.status||"new") !== "paid") return; // 只計入已付款
+        const ts = o.time || o.createdAt || Date.now();
+        const amt = orderSubtotal(o);
+
+        if (sameDayTW(ts, now))  { revDay += amt; cntDay++; }
+        if (sameMonthTW(ts, now)){ revMonth += amt; cntMonth++; }
+      });
+
+      $("revDay").textContent   = `今日營收：$${fmt.format(revDay)}（${cntDay} 單）`;
+      $("revMonth").textContent = `本月營收：$${fmt.format(revMonth)}（${cntMonth} 單）`;
+    }
 
     function renderOrders(orders){
       const keys = Object.keys(orders).sort((a,b)=>{
@@ -318,7 +373,7 @@
         el.innerHTML = `
           <div class="order-head">
             <span>桌號：<b>${o.table||"?"}</b></span>
-            <span class="muted">時間：${formatTW(o.time)}</span>  <!-- ✅ 台灣時區 -->
+            <span class="muted">時間：${formatTW(o.time)}</span>
             <span class="pill ${o.status||"new"}">${o.status||"new"}</span>
             <span class="order-code">${id}</span>
           </div>
