@@ -94,6 +94,18 @@ main{
     position: static; /* 手機不黏頂，正常流 */
   }
 }
+/* 限制一排最多四桌 */
+.table-panel {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); /* 一排 4 個 */
+  gap: 10px; /* 按鈕間距 */
+}
+
+/* 桌位按鈕統一大小 */
+.table-panel button {
+  width: 100%;
+  min-height: 60px;
+}
 
   </style>
 </head>
